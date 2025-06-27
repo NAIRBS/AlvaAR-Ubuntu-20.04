@@ -4,7 +4,7 @@ import express from 'express';
 import ip from 'ip';
 import { Server } from 'socket.io';
 
-const SERVER_PORT = 443;
+const SERVER_PORT = 8080;
 const STATIC_FOLDER = './public/';
 
 const app = express();

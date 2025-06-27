@@ -4,6 +4,52 @@ AlvaAR is a realtime visual SLAM algorithm running as WebAssembly, in the browse
 
 ![image](examples/public/assets/image.gif)
 
+## File Change Notes
+- The `build.sh` script in `/src/libs` has been adapted for Linux compatibility; the original codebase was developed for macOS.
+
+- The file [`buildtests.in`](https://github.com/PX4/eigen/blob/master/scripts/buildtests.in) from the PX4 Eigen repository was missing and has been added to `/src/libs/eigen/scripts`.
+
+- The following CMakeLists files have been modified to avoid errors related to the `-march=native` flag (WebAssembly is based on a virtual machine and does not support this flag):
+  - [`src/libs/obindex2/lib/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/obindex2/CMakeLists.txt)
+  - [`src/libs/ibow_lcd/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/ibow_lcd/CMakeLists.txt)
+  - [`src/libs/opengv/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/opengv/CMakeLists.txt)
+
+- Updated port used in HTTPS to 8080 not 443 since its private, in [`/examples/server.js`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/examples/server.js)
+
+## Ubuntu Specific Setup
+```
+    cd ~
+    git clone https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04
+
+    sudo apt update
+    sudo apt install build-essential cmake python3 python3-pip nodejs npm python-is-python3
+
+    # In home directory
+    git clone https://github.com/emscripten-core/emsdk.git
+    cd emsdk
+
+    # Fetch the latest version of the emsdk (not needed the first time you clone)
+    git pull
+
+    # Download and install the latest SDK tools.
+    ./emsdk install 3.1.44
+
+    # Make the "latest" SDK "active" for the current user. (writes .emscripten file)
+    ./emsdk activate 3.1.44
+
+    # Activate PATH and other environment variables in the current terminal
+    source ~/emsdk/emsdk_env.sh
+
+    # Check if emcc is active in current terminal
+    emcc -v
+
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+    source ~/.bashrc
+    nvm --version
+
+    nvm install 18
+    nvm use 18
+```
 
 ## Examples
 The examples use [ThreeJS](https://threejs.org/) to apply and render the estimated camera pose to a 3d environment.  
