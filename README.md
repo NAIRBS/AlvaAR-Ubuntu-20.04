@@ -1,16 +1,21 @@
-# AlvaAR
+# AlvaAR (Now for Ubuntu 20.04)
 
 AlvaAR is a realtime visual SLAM algorithm running as WebAssembly, in the browser. It is a heavily modified version of the [OV²SLAM](https://github.com/ov2slam/ov2slam) and [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) projects. SLAM is the core building block of Augmented Reality applications focusing on world tracking.
 
 ![image](examples/public/assets/image.gif)
 
+# This repository is ongoing development, planned enhancements are:
+1. ORBSLAM2 to ORBSLAM3, specifically to support Fisheye lens (ORBSLAM3 exclusive)
+2. Monocular Camera to Stereo Camera use
+3. Pipe input from 2 ESP32 Webserver Cam Modules to build a prototype AR Headset (currently only accepts video.mp4 and single mobile phone camera input)
+
 ## File Change Notes
 - The `build.sh` script in `/src/libs` has been adapted for Linux compatibility; the original codebase was developed for macOS.
 
-- The file [`buildtests.in`](https://github.com/PX4/eigen/blob/master/scripts/buildtests.in) from the PX4 Eigen repository was missing and has been added to `/src/libs/eigen/scripts`.
+- The file [`buildtests.in`](https://github.com/PX4/eigen/blob/master/scripts/buildtests.in) from the Eigen libs dependency folder was missing and has been added to this folder [`/src/libs/eigen/scripts`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/tree/main/src/libs/eigen/scripts).
 
 - The following CMakeLists files have been modified to avoid errors related to the `-march=native` flag (WebAssembly is based on a virtual machine and does not support this flag):
-  - [`src/libs/obindex2/lib/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/obindex2/CMakeLists.txt)
+  - [`src/libs/obindex2/lib/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/obindex2/lib/CMakeLists.txt)
   - [`src/libs/ibow_lcd/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/ibow_lcd/CMakeLists.txt)
   - [`src/libs/opengv/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/opengv/CMakeLists.txt)
 
