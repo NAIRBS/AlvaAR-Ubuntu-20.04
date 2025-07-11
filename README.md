@@ -1,10 +1,20 @@
 # AlvaAR (Now for Ubuntu 20.04)
 
-AlvaAR is a realtime visual SLAM algorithm running as WebAssembly, in the browser. It is a heavily modified version of the [OV²SLAM](https://github.com/ov2slam/ov2slam) and [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) projects. SLAM is the core building block of Augmented Reality applications focusing on world tracking.
+AlvaAR is a real-time visual SLAM algorithm running as WebAssembly, in the browser. It is a heavily modified version of the [OV²SLAM](https://github.com/ov2slam/ov2slam) and [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) projects. 
+
+SLAM is the core building block of Augmented Reality applications, focusing on world tracking.
 
 ![image](examples/public/assets/image.gif)
 
-# This repository is ongoing development, planned enhancements are:
+## Examples
+The examples use [ThreeJS](https://threejs.org/) to apply and render the estimated camera pose to a 3d environment.  
+
+[Video Demo](https://alanross.github.io/AlvaAR/examples/public/video.html): A desktop browser version using a video file as input.  
+[Camera Demo](https://alanross.github.io/AlvaAR/examples/public/camera.html): The mobile version will access the device camera as input.
+
+<img width="75" src="examples/public/assets/qr.png">
+
+# This repository is under ongoing development. Planned enhancements are:
 1. ORBSLAM2 to ORBSLAM3, specifically to support Fisheye lens (ORBSLAM3 exclusive)
 2. Monocular Camera to Stereo Camera use
 3. Pipe input from 2 ESP32 Webserver Cam Modules to build a prototype AR Headset (currently only accepts video.mp4 and single mobile phone camera input)
@@ -12,14 +22,14 @@ AlvaAR is a realtime visual SLAM algorithm running as WebAssembly, in the browse
 ## File Change Notes
 - The `build.sh` script in `/src/libs` has been adapted for Linux compatibility; the original codebase was developed for macOS.
 
-- The file [`buildtests.in`](https://github.com/PX4/eigen/blob/master/scripts/buildtests.in) from the Eigen libs dependency folder was missing and has been added to this folder [`/src/libs/eigen/scripts`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/tree/main/src/libs/eigen/scripts).
+- The file [`buildtests.in`](https://github.com/PX4/eigen/blob/master/scripts/buildtests.in) from the Eigen libs dependency folder was missing is now added to this folder [`/src/libs/eigen/scripts`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/tree/main/src/libs/eigen/scripts).
 
 - The following CMakeLists files have been modified to avoid errors related to the `-march=native` flag (WebAssembly is based on a virtual machine and does not support this flag):
   - [`src/libs/obindex2/lib/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/obindex2/lib/CMakeLists.txt)
   - [`src/libs/ibow_lcd/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/ibow_lcd/CMakeLists.txt)
   - [`src/libs/opengv/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/opengv/CMakeLists.txt)
 
-- Updated port used in HTTPS to 8080 not 443 since its private, in [`/examples/server.js`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/examples/server.js)
+- Updated port used in HTTPS to 8080, not 443 since it's private, in [`/examples/server.js`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/examples/server.js)
 
 ## Ubuntu Specific Setup
 ```
@@ -56,13 +66,58 @@ AlvaAR is a realtime visual SLAM algorithm running as WebAssembly, in the browse
     nvm use 18
 ```
 
-## Examples
-The examples use [ThreeJS](https://threejs.org/) to apply and render the estimated camera pose to a 3d environment.  
+## After running the above, you need to build 3 things
+1. Dependencies
+2. AlvaAR / SLAM Libraries
+3. HTTPS Server (if required)
 
-[Video Demo](https://alanross.github.io/AlvaAR/examples/public/video.html): A desktop browser version using a video file as input.  
-[Camera Demo](https://alanross.github.io/AlvaAR/examples/public/camera.html): The mobile version will access the device camera as input.
+## 1. Dependencies
+### Prerequisites
 
-<img width="75" src="examples/public/assets/qr.png">
+#### Emscripten
+Ensure [Emscripten](https://emscripten.org/docs/getting_started/Tutorial.html) is installed and activated in your session. This is already shown above, but please check again if your path differs:
+
+```
+    $: source [PATH]/emsdk/emsdk_env.sh 
+    $: emcc -v
+```
+#### C++11 or Higher
+Alva makes use of C++11 features and should thus be compiled with a C++11 or higher flag.
+
+### Dependencies
+
+| Dependency             | Description                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Eigen3                 | Download Eigen 3.4. Find all releases [here](https://eigen.tuxfamily.org/index.php?title=Main_Page). This project has been tested with 3.4.0                                                                                                                                                                                                                                                                                         |
+| OpenCV                 | Download OpenCV 4.5. Find all releases [here](https://opencv.org/releases/). This project has been tested with [4.5.5](https://github.com/opencv/opencv/archive/4.5.5.zip).                                                                                                                                                                                                                                                          |
+| iBoW-LCD               | A modified version of [iBoW-LCD](https://github.com/emiliofidalgo/ibow-lcd) is included in the libs folder. It has been turned into a static shared lib. Same goes for [OBIndex2](https://github.com/emiliofidalgo/obindex2), the required dependency for iBoW-LCD. Check the lcdetector.h and lcdetector.cc files to see the modifications w.r.t. to the original code. Both CMakeList have been adjusted to work with Emscripten. |
+| Sophus                 | [Sophus](https://github.com/strasdat/Sophus) is used for _*SE(3), SO(3)*_ elements representation.                                                                                                                                                                                                                                                                                                                                  |
+| Ceres Solver           | [Ceres](https://github.com/ceres-solver/ceres-solver) is used for optimization related operations such as PnP, Bundle Adjustment or PoseGraph Optimization. Note that [Ceres dependencies](http://ceres-solver.org/installation.html) are still required.                                                                                                                                                                           |
+| OpenGV                 | [OpenGV](https://github.com/laurentkneip/opengv) is used for Multi-View-Geometry (MVG) operations.                                                                                                                                                                                                                                                                                                                                  |
+#### Build Dependencies
+For convenience, a copy of all required libraries has been included in the libs/ folder. Run the following script to compile all libraries to WASM modules, which can be linked into the main project.
+
+**Note that this script has been changed such that march-native flags do not cause late-stage conflicts later.**
+
+```
+    $: cd ~/AlvaAR-Ubuntu-20.04/src/libs/
+    $: ./build.sh
+```
+
+## 2. AlvaAR / SLAM Libraries
+Then, run the following:
+
+```
+    $: cd ~/AlvaAR-Ubuntu-20.04/src/slam
+    $: mkdir build/
+    $: cd build/
+    $: emcmake cmake .. 
+    $: emmake make install
+```
+
+## 3. HTTPS Server (if required)
+
+
 
 ### Run with http server
 To run the examples on your local machine, start a simple http server in the examples/ folder:
@@ -78,28 +133,28 @@ To run the examples on another device in your local network, they must be served
 
 #### 1) Install server dependencies
 ```
-    $: cd ./AlvaAR/examples/
+    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
     $: npm install
 ```
-
-#### 2) Generate self-signed certificate
+#### 2) Generate a self-signed certificate
 ```
-    $: cd ./AlvaAR/examples
+    $: cd ~/AlvaAR-Ubuntu-20.04/examples
     $: mkdir ssl/
     $: cd ssl/
     $: openssl req -nodes -new -x509 -keyout key.pem -out cert.pem
 ```
-
 #### 3) Run
 ```
-    $: cd ./AlvaAR/examples/
-    $: nvm use 13.2
+    $: cd ~/AlvaAR-Ubuntu-20.04/AlvaAR/examples/
+    $: nvm use 18
     $: npm start
 ``` 
-Then open [https://YOUR_IP:443/video.html](https://YOUR_IP:443/video.html]) in your browser.
-If met with a <b>ERR_CERT_INVALID</b> error in Chrome,
-try typing <i>badidea</i> or <i>thisisunsafe</i> directly in Chrome on the same page.
-Don’t do this unless the site is one you trust or develop.
+**To run with recorded video: Open [https://YOUR_IP:443/video.html](https://YOUR_IP:443/video.html]) in your browser.**
+
+**To run with Mobile Camera/Webcam: Open [https://YOUR_IP:443/camera.html](https://YOUR_IP:443/video.html]) in your (mobile) browser.**
+
+If met with a <b>ERR_CERT_INVALID</b> error in Chrome, try typing <i>badidea</i> or <i>thisisunsafe</i> directly in Chrome on the same page.
+Don’t do this unless the site is one you trust or have developed.
 
 
 ## Usage
@@ -146,59 +201,6 @@ function loop()
 ```
 
 
-## Build
-
-### Prerequisites
-
-#### Emscripten
-Ensure [Emscripten](https://emscripten.org/docs/getting_started/Tutorial.html) is installed and activated in your session.
-
-```
-    $: source [PATH]/emsdk/emsdk_env.sh 
-    $: emcc -v
-```
-
-#### C++11 or Higher
-Alva makes use of C++11 features and should thus be compiled with a C++11 or higher flag.
-
-### Dependencies
-
-| Dependency             | Description                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Eigen3                 | Download Eigen 3.4. Find all releases [here](https://eigen.tuxfamily.org/index.php?title=Main_Page).This project has been tested with 3.4.0                                                                                                                                                                                                                                                                                         |
-| OpenCV                 | Download OpenCV 4.5. Find all releases [here](https://opencv.org/releases/).This project has been tested with [4.5.5](https://github.com/opencv/opencv/archive/4.5.5.zip).                                                                                                                                                                                                                                                          |
-| iBoW-LCD               | A modified version of [iBoW-LCD](https://github.com/emiliofidalgo/ibow-lcd) is included in the libs folder. It has been turned into a static shared lib. Same goes for [OBIndex2](https://github.com/emiliofidalgo/obindex2), the required dependency for iBoW-LCD. Check the lcdetector.h and lcdetector.cc files to see the modifications w.r.t. to the original code. Both CMakeList have been adjusted to work with Emscripten. |
-| Sophus                 | [Sophus](https://github.com/strasdat/Sophus) is used for _*SE(3), SO(3)*_ elements representation.                                                                                                                                                                                                                                                                                                                                  |
-| Ceres Solver           | [Ceres](https://github.com/ceres-solver/ceres-solver) is used for optimization related operations such as PnP, Bundle Adjustment or PoseGraph Optimization. Note that [Ceres dependencies](http://ceres-solver.org/installation.html) are still required.                                                                                                                                                                           |
-| OpenGV                 | [OpenGV](https://github.com/laurentkneip/opengv) is used for Multi-View-Geometry (MVG) operations.                                                                                                                                                                                                                                                                                                                                  |
-
-#### Build Dependencies
-For convenience, a copy of all required libraries has been included in the libs/ folder. Run the following script to compile all libraries to wasm modules which can be linked into the main project.
-
-```
-    $: cd ./AlvaAR/src/libs/
-    $: ./build.sh
-```
-
-#### Build Project
-
-Run the following in your shell before invoking emcmake or emmake:
-
-```
-    $: [PATH]/emsdk/emsdk_env.sh
-```
-
-Then, run the following:
-
-```
-    $: cd ./AlvaAR/src/slam
-    $: mkdir build/
-    $: cd build/
-    $: emcmake cmake .. 
-    $: emmake make install
-```
-
-
 ## Roadmap
 - [ ] Improve the initialisation phase to be more stable and predictable.
 - [ ] Move feature extraction and tracking to GPU.
@@ -212,7 +214,7 @@ AlvaAR is released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.
 OV²SLAM and ORB-SLAM2 are both released under the [GPLv3 license](https://www.gnu.org/licenses/gpl-3.0.txt). Please see 3rd party dependency licenses in libs/.
 
 
-## Contact
+## Contact for Main Author
 
 Alan Ross: [@alan_ross](https://twitter.com/alan_ross) or [me@aross.io]()  
-Project: [https://github.com/alanross/AlvaAR](https://github.com/alanross/AlvaAR)
+Main Project Link: [https://github.com/alanross/AlvaAR](https://github.com/alanross/AlvaAR)
