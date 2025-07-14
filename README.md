@@ -149,13 +149,40 @@ To run the examples on another device in your local network, they must be served
     $: nvm use 18
     $: npm start
 ``` 
-**To run with recorded video: Open [https://YOUR_IP:443/video.html](https://YOUR_IP:443/video.html]) in your browser.**
 
-**To run with Mobile Camera/Webcam: Open [https://YOUR_IP:443/camera.html](https://YOUR_IP:443/video.html]) in your (mobile) browser.**
+Where you should should then see something similar to:
+
+```
+> simple-https-server@1.0.0 start
+> node server.js
+
+Server running at: https://10.255.255.254:8080
+```
+
+**To run with recorded video: Open [https://YOUR_IP:8080/video.html](https://YOUR_IP:8080/video.html) in your browser.**
+
+**To run with Mobile Camera/Webcam: Open [https://YOUR_IP:8080/camera.html](https://YOUR_IP:8080/video.html) in your (mobile) browser.**
+
+Note that if you are running on WSL, the IP provided in the terminal will not work, run:
+```
+    $: hostname -I
+```
+And use that IP address instead, etc: [https://WSL_IP:8080/camera.html](https://WSL_IP:8080/camera.html)
 
 If met with a <b>ERR_CERT_INVALID</b> error in Chrome, try typing <i>badidea</i> or <i>thisisunsafe</i> directly in Chrome on the same page.
 Don’t do this unless the site is one you trust or have developed.
 
+## Usage with ESP32 Camera Modules
+Use this ROS2 node to publish rectified Stereo ESP32 Camera Input: [stereo_camera_pipeline](https://github.com/Shye0930/stereo_camera_pipeline)
+1. Instructions on optimal ESP32 Camera flashing and calibration here: [ros2_rolling](https://github.com/Shye0930/fyp/tree/main/camera/camera_calibration/ros2_rolling) << This is currently privated
+2. Once you've flashed your ESP32s (pinhole cameras) and obtained calibration matrixes/data from step 1, you need to connect your ESP32s (with hardcoded SSID login) to the local wifi/hotspot, you also need to connect your machine to the same wifi/hotspot. You also need to format the calibration data into the yaml config file format.
+3. Make sure to update the ip addresses assigned by your wifi/hotspot and the calibration file location in stereo_pipeline.launch.py, then run the following to start publishing video frames in ROS2 topics:
+```
+    $: ros2 launch stereo_camera_pipeline stereo_pipeline.launch.py
+```
+
+Then open this on your machine's browser to be able to view AlvaAR with ESP32 Stereo input:
+[https://YOUR_IP:8080/esp32.html](https://YOUR_IP:8080/esp32.html)
 
 ## Usage
 
