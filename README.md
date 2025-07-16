@@ -145,12 +145,12 @@ To run the examples on another device in your local network, they must be served
 ```
 #### 3) Run
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/AlvaAR/examples/
+    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
     $: nvm use 18
     $: npm start
 ``` 
 
-Where you should should then see something similar to:
+Where you should then see something similar to:
 
 ```
 > simple-https-server@1.0.0 start
@@ -180,9 +180,36 @@ Use this ROS2 node to publish rectified Stereo ESP32 Camera Input: [stereo_camer
 ```
     $: ros2 launch stereo_camera_pipeline stereo_pipeline.launch.py
 ```
+After you've started publishing the stereo rectified (and raw frames) from running the previous pipeline node, you should see the available topics named:
+```
+$: ros2 topic list
+/parameter_events
+/rosout
+/stereo/left/camera_info
+/stereo/left/image_raw
+/stereo/left/rectified_images
+/stereo/right/camera_info
+/stereo/right/image_raw
+/stereo/right/rectified_images
+```
+4. Run this script to publish the data in the ROS2 topics, this is so that AlvaAR is able to grab the frames on the receiving end from the ESP32 Camera input:
+```
+    $: python3 ros2_ws_server_blob.py
+```
+5. Then run:
+```
+    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
+    $: npm start
+```
+**To run with ESP32 Stereo Input: Open [https://YOUR_IP:8080/both_esp32blob.html](https://YOUR_IP:8080/both_esp32blob.html) in your browser.**
 
-Then open this on your machine's browser to be able to view AlvaAR with ESP32 Stereo input:
-[https://YOUR_IP:8080/esp32.html](https://YOUR_IP:8080/esp32.html)
+Note that if you are running on WSL, the IP provided in the terminal will not work, run:
+```
+    $: hostname -I
+```
+And use that IP address instead, etc: [https://WSL_IP:8080/both_esp32blob.html](https://WSL_IP:8080/both_esp32blob.html)
+
+### Note that you must open the URL on the same machine that is hosting the HTTPS server, as the ESP32 Camera video feeds are routed through localhost.
 
 ## Usage
 

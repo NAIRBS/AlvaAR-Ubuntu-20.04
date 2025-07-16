@@ -81,7 +81,7 @@
       position: absolute;
       width: 100%;
       white-space: pre-wrap;
-      content: "Waiting for ROS2 camera stream \A (topic: /stereo/left/rectified_images)";
+      content: "Waiting for ROS2 camera stream \A (topic: /stereo/left/rectified_images/compressed)";
       top: calc(50% + 50px);
       text-align: center;
       color: #949494;
@@ -135,7 +135,9 @@
   import { onFrame } from "./assets/utils.js";
 
   function connectROSImage(callback) {
-    const ros = new ROSLIB.Ros({ url: 'ws://localhost:9090' });
+    //const ros = new ROSLIB.Ros({ url: 'wss://172.21.1.30/' });
+    //const ros = new ROSLIB.Ros({ url: 'wss://localhost/' });
+    const ros = new ROSLIB.Ros({ url: 'ws://localhost:9090/' });
 
     ros.on('connection', () => console.log('Connected to ROS'));
     ros.on('error', err => console.error('Error connecting to ROS:', err));
@@ -143,15 +145,38 @@
 
     const imageListener = new ROSLIB.Topic({
       ros: ros,
-      name: '/stereo/left/rectified_images',
+      name: '/stereo/left/rectified_images/compressed',
       messageType: 'sensor_msgs/msg/CompressedImage'
     });
 
     imageListener.subscribe(message => {
-      const base64Data = 'data:image/jpeg;base64,' + btoa(
-        String.fromCharCode(...new Uint8Array(message.data))
-      );
-      callback(base64Data);
+    console.log('[✓] Received message on /stereo/left/rectified_images/compressed');
+        try {
+            // Check if data exists
+            if (!message.data || message.data.length === 0) {
+            console.warn('[⚠] Received empty image data');
+            return;
+            }
+
+            // Decode to base64
+            const raw = new Uint8Array(message.data);
+            const binary = raw.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+            const base64Data = 'data:image/jpeg;base64,' + message.data;
+
+            // Load image into an HTML <img> and call callback when ready
+            const $img = new Image();
+            $img.onload = () => {
+            console.log('[✓] Image loaded into <img>, calling callback');
+            callback(base64Data);
+            };
+            $img.onerror = () => {
+            console.error('[X] Failed to load image from decoded base64 string');
+            };
+            $img.src = base64Data;
+
+        } catch (err) {
+            console.error('[X] Error decoding or handling compressed image:', err);
+        }
     });
   }
 
