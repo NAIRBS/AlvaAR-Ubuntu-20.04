@@ -58,3 +58,33 @@ public:
     cv::Rect roi_rect_;
     cv::Mat roi_mask_;
 };
+
+// ==== STEREO SLAM ADDITION ====
+// The following class is added to support stereo camera calibration for stereo SLAM.
+// This is necessary because stereo SLAM requires knowledge of both left and right camera intrinsics
+// as well as the extrinsic transformation (rotation and translation) between them.
+// This mirrors OV2SLAM's approach, where stereo calibration is a core requirement for triangulation and pose estimation.
+// This class is completely separate from the existing CameraCalibration class, so monocular code is unaffected.
+
+class StereoCameraCalibration {
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    // Default constructor for flexibility in initialization.
+    StereoCameraCalibration() {}
+
+    // Constructor that takes two CameraCalibration objects (left and right) and the transformation from left to right.
+    // This matches the OV2SLAM convention, where T_left_right is used for stereo geometry.
+    StereoCameraCalibration(const CameraCalibration& left,
+                           const CameraCalibration& right,
+                           const Sophus::SE3d& T_left_right)
+        : left_(left), right_(right), T_left_right_(T_left_right) {}
+
+    CameraCalibration left_;         // Intrinsics and distortion for the left camera
+    CameraCalibration right_;        // Intrinsics and distortion for the right camera
+    Sophus::SE3d T_left_right_;      // Extrinsic: transform from left to right camera
+
+    // This structure is essential for stereo feature matching and triangulation,
+    // as it allows us to project points from one camera to the other and compute 3D positions.
+};
+// ---- END STEREO SLAM ADDITION ----

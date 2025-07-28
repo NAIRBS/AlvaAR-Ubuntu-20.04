@@ -43,7 +43,6 @@ class ARCamView
     updateCameraPose( pose )
     {
         this.applyPose( pose, this.camera.quaternion, this.camera.position );
-
         this.object.visible = true;
     }
 

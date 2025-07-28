@@ -9,6 +9,8 @@ SLAM is the core building block of Augmented Reality applications, focusing on w
 ## Examples
 The examples use [ThreeJS](https://threejs.org/) to apply and render the estimated camera pose to a 3d environment.  
 
+#### [Note that for the video demo, if you are on Ubuntu Firefox, you may have to go to "about:preferences" → General → Make sure “Play DRM-controlled content” is enabled.]
+
 [Video Demo](https://alanross.github.io/AlvaAR/examples/public/video.html): A desktop browser version using a video file as input.  
 [Camera Demo](https://alanross.github.io/AlvaAR/examples/public/camera.html): The mobile version will access the device camera as input.
 
@@ -194,7 +196,7 @@ $: ros2 topic list
 ```
 4. Run this script to publish the data in the ROS2 topics, this is so that AlvaAR is able to grab the frames on the receiving end from the ESP32 Camera input:
 ```
-    $: python3 ros2_ws_server_blob.py
+    $: python3 ros2_ws_server_blob_both.py
 ```
 5. Then run:
 ```
@@ -207,9 +209,23 @@ Note that if you are running on WSL, the IP provided in the terminal will not wo
 ```
     $: hostname -I
 ```
-And use that IP address instead, etc: [https://WSL_IP:8080/both_esp32blob.html](https://WSL_IP:8080/both_esp32blob.html)
+And use that IP address instead, etc: 
+Monocular SLAM: [https://WSL_IP:8080/mono_esp32blob.html](https://WSL_IP:8080/mono_esp32blob.html)
+Stereo SLAM: [https://WSL_IP:8080/stereo_esp32blob.html](https://WSL_IP:8080/stereo_esp32blob.html)
+
+You also need to forward the ports from WSL to your actual machine for the ESP32 streams that are being published by the python scripts to reach AlvaAR, you can do this in your Main Window's PowerShell (remember to run in administrator mode):
+```
+netsh interface portproxy add v4tov4 listenport=8765 listenaddress=0.0.0.0 connectport=8765 connectaddress=[YOUR WSL IP]
+```
+Replace "[YOUR WSL IP]" with your IP obtained from "hostname -I" on WSL.
 
 ### Note that you must open the URL on the same machine that is hosting the HTTPS server, as the ESP32 Camera video feeds are routed through localhost.
+
+6. To quickly rebuild slam library and host the website again:
+```
+    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
+    $: ./rebuild_and_run.sh
+```
 
 ## Usage
 

@@ -175,4 +175,44 @@ public:
     std::map<int, int> covisibleKeyframeIds_;
 
     std::unordered_set<int> localMapPointIds_;
+
+    // Stereo-specific members (adapted from OV2SLAM)
+    std::vector<cv::KeyPoint> rightKeypoints_;
+    cv::Mat rightDescriptors_;
+    std::vector<float> stereoDepth_; // depth for each left keypoint (from stereo triangulation)
+
+    // Stereo-specific methods (adapted from OV2SLAM)
+    void setStereoData(const std::vector<cv::KeyPoint>& rightKps, const cv::Mat& rightDesc, const std::vector<float>& depth);
+    float getStereoDepth(int idx) const;
 };
+
+// ==== STEREO SLAM ADDITION ====
+// The following class is added to represent a stereo frame, which consists of both left and right images
+// and their associated Frame objects. This is necessary because stereo SLAM operates on synchronized image pairs,
+// and needs to keep track of both sets of keypoints, descriptors, and pose information.
+// This mirrors OV2SLAM's use of stereo frames for feature matching and triangulation.
+// This class is completely separate from the existing Frame class, so monocular code is unaffected.
+
+class StereoFrame {
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    // Default constructor for flexibility in initialization.
+    StereoFrame() {}
+
+    // Constructor that takes left/right images and their corresponding Frame objects.
+    // This allows us to keep all stereo-related data together for processing.
+    StereoFrame(const cv::Mat& left_img, const cv::Mat& right_img,
+                std::shared_ptr<Frame> left_frame, std::shared_ptr<Frame> right_frame)
+        : left_image(left_img), right_image(right_img),
+          left(left_frame), right(right_frame) {}
+
+    cv::Mat left_image;                  // The left camera image for this frame
+    cv::Mat right_image;                 // The right camera image for this frame
+    std::shared_ptr<Frame> left;         // Frame object for the left image (keypoints, pose, etc.)
+    std::shared_ptr<Frame> right;        // Frame object for the right image
+
+    // This structure is essential for stereo feature matching and triangulation,
+    // as it allows us to process both images together and maintain their relationship.
+};
+// ---- END STEREO SLAM ADDITION ----

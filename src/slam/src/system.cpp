@@ -1,9 +1,13 @@
+#include "compat_boost17.h"
 #include "system.hpp"
 #include <memory>
 #include <iostream>
+#include "ibow_lcd/lcdetector.h"
 
 System::System()
 {
+    ibow_lcd::LCDetectorParams params; // Use default or tune as needed
+    lcdetector_ = std::make_unique<ibow_lcd::LCDetector>(params);
 }
 
 System::~System()
@@ -339,4 +343,32 @@ cv::Mat System::processPlane(std::vector<Eigen::Vector3d> mapPoints, Sophus::SE3
     inliersOrigin.copyTo(planePose.col(3).rowRange(0, 3));  // translation
 
     return planePose;
+}
+
+// Helper to convert std::vector<Keypoint> to std::vector<cv::KeyPoint>
+static std::vector<cv::KeyPoint> toCvKeyPoints(const std::vector<Keypoint>& kps) {
+    std::vector<cv::KeyPoint> out;
+    out.reserve(kps.size());
+    for (const auto& kp : kps) {
+        // Use: cv::KeyPoint(Point2f pt, float size, float angle = -1, float response = 0, int octave = 0, int class_id = -1)
+        out.emplace_back(kp.px_, 1.f, -1, kp.is3d_ ? 1.f : 0.f, 0, kp.keypointId_);
+    }
+    return out;
+}
+
+// Add new keyframe to BoW database (call after keyframe creation)
+void System::addKeyframeToBoW(std::shared_ptr<Frame> keyframe) {
+    // Disabled: BoW place recognition
+    // lcdetector_->process(keyframe->id_, toCvKeyPoints(keyframe->getKeypoints()), keyframe->rightDescriptors_, nullptr); // Use rightDescriptors_ or left as needed
+}
+
+// Relocalization (adapted from OV2SLAM)
+bool System::relocalize(std::shared_ptr<Frame> currFrame) {
+    // Disabled: BoW place recognition
+    return false;
+}
+
+// Loop closure (adapted from OV2SLAM)
+void System::checkLoopClosure(std::shared_ptr<Frame> currFrame) {
+    // Disabled: BoW place recognition
 }

@@ -14,6 +14,8 @@ public:
     }
 
     void localBA(Frame &newFrame);
+    // Local bundle adjustment (adapted from OV2SLAM)
+    void localBundleAdjustment(std::vector<std::shared_ptr<Frame>>& localKeyframes, std::vector<std::shared_ptr<MapPoint>>& localMapPoints);
 
 private:
     std::shared_ptr<State> state_;

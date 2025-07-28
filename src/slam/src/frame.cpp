@@ -488,3 +488,16 @@ void Frame::reset()
     covisibleKeyframeIds_.clear();
     localMapPointIds_.clear();
 }
+
+// Stereo-specific methods (adapted from OV2SLAM)
+void Frame::setStereoData(const std::vector<cv::KeyPoint>& rightKps, const cv::Mat& rightDesc, const std::vector<float>& depth) {
+    rightKeypoints_ = rightKps;
+    rightDescriptors_ = rightDesc.clone();
+    stereoDepth_ = depth;
+}
+
+float Frame::getStereoDepth(int idx) const {
+    if (idx >= 0 && idx < (int)stereoDepth_.size())
+        return stereoDepth_[idx];
+    return -1.0f;
+}

@@ -418,7 +418,7 @@ void Optimizer::localBA(Frame &newFrame)
 
         if (mapPoint->isBad())
         {
-            mapManager_->removeMapPoint(lmId);
+            mapManager_->removeMapPoint(mapPoint);
             set_badlmids.erase(lmId);
             continue;
         }
@@ -430,7 +430,7 @@ void Optimizer::localBA(Frame &newFrame)
         {
             if (mapPoint->keyframeId_ < newFrame.keyframeId_ - 3 && !mapPoint->isObserved_)
             {
-                mapManager_->removeMapPoint(lmId);
+                mapManager_->removeMapPoint(mapPoint);
                 set_badlmids.erase(lmId);
                 continue;
             }
@@ -449,7 +449,7 @@ void Optimizer::localBA(Frame &newFrame)
             double zanch = 1. / invptit->second.getInvDepth();
             if (zanch <= 0.)
             {
-                mapManager_->removeMapPoint(lmId);
+                mapManager_->removeMapPoint(mapPoint);
                 set_badlmids.erase(lmId);
                 continue;
             }
@@ -511,7 +511,7 @@ void Optimizer::localBA(Frame &newFrame)
 
         if (mapPoint->isBad())
         {
-            mapManager_->removeMapPoint(lmid);
+            mapManager_->removeMapPoint(mapPoint);
             numBadLandmarks++;
         }
         else
@@ -522,10 +522,114 @@ void Optimizer::localBA(Frame &newFrame)
             {
                 if (mapPoint->keyframeId_ < newFrame.keyframeId_ - 3 && !mapPoint->isObserved_)
                 {
-                    mapManager_->removeMapPoint(lmid);
+                    mapManager_->removeMapPoint(mapPoint);
                     numBadLandmarks++;
                 }
             }
         }
     }
+}
+
+// Reprojection error cost function (adapted from OV2SLAM)
+struct ReprojectionErrorSE3 {
+    ReprojectionErrorSE3(float u, float v, float fx, float fy, float cx, float cy)
+        : u_(u), v_(v), fx_(fx), fy_(fy), cx_(cx), cy_(cy) {}
+    template <typename T>
+    bool operator()(const T* const se3, const T* const point, T* residuals) const {
+        // se3: [tx, ty, tz, qx, qy, qz, qw]
+        Eigen::Map<const Eigen::Quaternion<T>> q(se3 + 3);
+        Eigen::Map<const Eigen::Matrix<T,3,1>> t(se3);
+        Eigen::Matrix<T,3,1> Pw(point[0], point[1], point[2]);
+        Eigen::Matrix<T,3,1> Pc = q * Pw + t;
+        T xp = Pc[0] / Pc[2];
+        T yp = Pc[1] / Pc[2];
+        T u_proj = T(fx_) * xp + T(cx_);
+        T v_proj = T(fy_) * yp + T(cy_);
+        residuals[0] = u_proj - T(u_);
+        residuals[1] = v_proj - T(v_);
+        return true;
+    }
+    static ceres::CostFunction* Create(float u, float v, float fx, float fy, float cx, float cy) {
+        return (new ceres::AutoDiffCostFunction<ReprojectionErrorSE3, 2, 7, 3>(
+            new ReprojectionErrorSE3(u, v, fx, fy, cx, cy)));
+    }
+    float u_, v_, fx_, fy_, cx_, cy_;
+};
+
+// Local bundle adjustment (adapted from OV2SLAM)
+void Optimizer::localBundleAdjustment(std::vector<std::shared_ptr<Frame>>& localKeyframes, std::vector<std::shared_ptr<MapPoint>>& localMapPoints) {
+    ceres::Problem problem;
+    std::map<std::shared_ptr<Frame>, double*> pose_params;
+    for (auto& kf : localKeyframes) {
+        double* se3 = new double[7];
+        Eigen::Vector3d t = kf->Twc_.translation();
+        Eigen::Quaterniond q(kf->Twc_.rotationMatrix());
+        se3[0] = t.x(); se3[1] = t.y(); se3[2] = t.z();
+        se3[3] = q.x(); se3[4] = q.y(); se3[5] = q.z(); se3[6] = q.w();
+        pose_params[kf] = se3;
+        problem.AddParameterBlock(se3, 7, new SE3Parameterization());
+    }
+    std::map<std::shared_ptr<MapPoint>, double*> point_params;
+    for (auto& mp : localMapPoints) {
+        double* pt = new double[3];
+        Eigen::Vector3d p = mp->getPoint();
+        pt[0] = p.x(); pt[1] = p.y(); pt[2] = p.z();
+        point_params[mp] = pt;
+        problem.AddParameterBlock(pt, 3);
+    }
+    // Add reprojection error residuals for each observation
+    std::vector<std::tuple<std::shared_ptr<Frame>, std::shared_ptr<MapPoint>, int>> observations;
+    for (auto& kf : localKeyframes) {
+        int idx = 0;
+        for (const auto& mpId : kf->localMapPointIds_) {
+            auto mp = mapManager_ ? mapManager_->getMapPoint(mpId) : nullptr;
+            if (!mp) continue;
+            // Use actual keypoint index and observed pixel
+            if (idx < (int)kf->getKeypoints().size()) {
+                Keypoint kp = kf->getKeypoints()[idx];
+                float u = kp.px_.x;
+                float v = kp.px_.y;
+                float fx = kf->cameraCalibration_->fx_, fy = kf->cameraCalibration_->fy_, cx = kf->cameraCalibration_->cx_, cy = kf->cameraCalibration_->cy_;
+                ceres::CostFunction* cost = ReprojectionErrorSE3::Create(u, v, fx, fy, cx, cy);
+                problem.AddResidualBlock(cost, nullptr, pose_params[kf], point_params[mp]);
+                observations.emplace_back(kf, mp, idx);
+            }
+            idx++;
+        }
+    }
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.max_num_iterations = 10;
+    options.minimizer_progress_to_stdout = false;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+    // Outlier removal: compute reprojection error for each observation
+    std::vector<std::shared_ptr<MapPoint>> outliers;
+    for (const auto& obs : observations) {
+        auto kf = std::get<0>(obs);
+        auto mp = std::get<1>(obs);
+        int idx = std::get<2>(obs);
+        double* se3 = pose_params[kf];
+        double* pt = point_params[mp];
+        Eigen::Map<const Eigen::Quaterniond> q(se3 + 3);
+        Eigen::Map<const Eigen::Vector3d> t(se3);
+        Eigen::Vector3d Pw(pt[0], pt[1], pt[2]);
+        Eigen::Vector3d Pc = q * Pw + t;
+        double u_proj = kf->cameraCalibration_->fx_ * (Pc[0] / Pc[2]) + kf->cameraCalibration_->cx_;
+        double v_proj = kf->cameraCalibration_->fy_ * (Pc[1] / Pc[2]) + kf->cameraCalibration_->cy_;
+        if (idx < (int)kf->getKeypoints().size()) {
+            Keypoint kp = kf->getKeypoints()[idx];
+            double err = std::sqrt((u_proj - kp.px_.x) * (u_proj - kp.px_.x) + (v_proj - kp.px_.y) * (v_proj - kp.px_.y));
+            if (err > 5.0) { // OV2SLAM typical threshold
+                outliers.push_back(mp);
+            }
+        }
+    }
+    // Remove outlier map points
+    for (auto& mp : outliers) {
+        if (mapManager_) mapManager_->removeMapPoint(mp);
+    }
+    std::cout << "[Optimizer] Local bundle adjustment complete. (Summary: " << summary.BriefReport() << ")" << std::endl;
+    for (auto& p : pose_params) delete[] p.second;
+    for (auto& p : point_params) delete[] p.second;
 }

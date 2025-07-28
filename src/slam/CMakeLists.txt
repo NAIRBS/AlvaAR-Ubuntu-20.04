@@ -47,6 +47,8 @@ include_directories(${LIBS_BUILD_FOLDER}/eigen/include/eigen3)
 include_directories(${LIBS_BUILD_FOLDER}/Sophus/include/)
 include_directories(${LIBS_BUILD_FOLDER}/ceres-solver/include/)
 include_directories(src)
+include_directories(${CMAKE_SOURCE_DIR}/../libs/ibow_lcd/include)
+include_directories(${CMAKE_SOURCE_DIR}/../libs/obindex2/lib/include)
 
 # Add the project source files
 file(GLOB_RECURSE SRC_FILES src/*.cpp)
@@ -69,18 +71,23 @@ file(GLOB LIB_OPENGV
 # hide warnings
 set_source_files_properties(${SRC_FILES} PROPERTIES COMPILE_FLAGS "-w")
 
+# Add ibow_lcd library
+link_directories(${CMAKE_SOURCE_DIR}/../libs/ibow_lcd/build)
+
 # Link third party libraries
 target_link_libraries(${PROJECT_NAME}
         ${LIB_OPENCV}
         ${LIB_CERES}
-        ${LIB_OPENGV})
+        ${LIB_OPENGV}
+        ${CMAKE_SOURCE_DIR}/../libs/ibow_lcd/build/liblcdetector.a
+        ${CMAKE_SOURCE_DIR}/../libs/obindex2/build/lib/libobindex2.a)
 
 # Specify compile arguments
 # https://emscripten.org/docs/optimizing/Optimizing-Code.html
 # https://github.com/emscripten-core/emscripten/blob/main/src/settings.js
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Compile in DEBUG mode")
-    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "\
+    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_DEBUG "\
       -s EXPORT_NAME='AlvaARWasm' \
       -s ENVIRONMENT=web,worker \
       -s INITIAL_MEMORY=256MB \
@@ -93,6 +100,34 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
       -s ASSERTIONS=1 \
       -s DYLINK_DEBUG=1 \
       -s EXPORTED_FUNCTIONS=['_malloc'] \
+      -s EXPORTED_RUNTIME_METHODS=['cwrap'] \
+      -s ERROR_ON_UNDEFINED_SYMBOLS=1 \
+      -s DISABLE_EXCEPTION_CATCHING=0 \
+      -s USE_ZLIB=1 \
+      -std=c++17 \
+      -msimd128 \
+      -O0 \
+      --extern-post-js ../../system.js \
+      --no-entry \
+      --no-check-features \
+      --profiling-funcs \
+      --bind")
+else ()
+    message(STATUS "Compile in RELEASE mode")
+    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_RELEASE "\
+      -s EXPORT_NAME='AlvaARWasm' \
+      -s ENVIRONMENT=web,worker \
+      -s INITIAL_MEMORY=256MB \
+      -s ALLOW_MEMORY_GROWTH=1 \
+      -s ALLOW_TABLE_GROWTH=1 \
+      -s MODULARIZE=1 \
+      -s EXPORT_ES6=1 \
+      -s EXPORT_ALL=1 \
+      -s SINGLE_FILE=1 \
+      -s ASSERTIONS=1 \
+      -s DYLINK_DEBUG=1 \
+      -s EXPORTED_FUNCTIONS=['_malloc'] \
+      -s EXPORTED_RUNTIME_METHODS=['cwrap'] \
       -s ERROR_ON_UNDEFINED_SYMBOLS=1 \
       -s DISABLE_EXCEPTION_CATCHING=0 \
       -s USE_ZLIB=1 \
@@ -104,32 +139,6 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
       --no-entry \
       --no-check-features \
       --profiling-funcs \
-      --bind")
-else ()
-    message(STATUS "Compile in RELEASE mode")
-    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "\
-      -s EXPORT_NAME='AlvaARWasm' \
-      -s ENVIRONMENT=web,worker \
-      -s INITIAL_MEMORY=256MB \
-      -s ALLOW_MEMORY_GROWTH=1 \
-      -s ALLOW_TABLE_GROWTH=1 \
-      -s MODULARIZE=1 \
-      -s EXPORT_ES6=1 \
-      -s EXPORT_ALL=1 \
-      -s SINGLE_FILE=1 \
-      -s ASSERTIONS=0 \
-      -s DYLINK_DEBUG=0 \
-      -s EXPORTED_FUNCTIONS=['_malloc'] \
-      -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
-      -s DISABLE_EXCEPTION_CATCHING=0 \
-      -s USE_ZLIB=1 \
-      -std=c++17 \
-      -msimd128 \
-      -O3 \
-      -Oz \
-      --extern-post-js ../../system.js \
-      --no-entry \
-      --no-check-features \
       --bind")
 endif ()
 unset(CMAKE_BUILD_TYPE CACHE)

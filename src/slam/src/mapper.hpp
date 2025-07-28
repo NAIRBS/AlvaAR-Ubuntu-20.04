@@ -41,6 +41,10 @@ public:
 
     void processNewKeyframe(const Keyframe &keyframe);
 
+    // Local mapping and bundle adjustment (adapted from OV2SLAM)
+    void localMapping(std::shared_ptr<Frame> newKeyframe);
+    void localBundleAdjustment(std::shared_ptr<Frame> newKeyframe);
+
 private:
     std::map<int, int> matchToMap(const Frame &frame, const float maxProjectionError, const float distRatio, std::unordered_set<int> &localMapPointIds);
 

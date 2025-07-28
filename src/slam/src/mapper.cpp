@@ -68,76 +68,15 @@ void Mapper::optimize(const std::shared_ptr<Frame> &keyframe)
     // apply local BA
     if (keyframe->keyframeId_ >= 2 && keyframe->numKeypoints3d_ != 0)
     {
-        optimizer_->localBA(*keyframe);
+        // optimizer_->localBA(*keyframe); // Disabled for performance (mono and stereo)
     }
 
     // apply map filtering
     if (state_->mapKeyframeFilteringRatio_ < 1.0 && keyframe->keyframeId_ >= 20)
     {
-        auto covisibleKeyframeMap = keyframe->getCovisibleKeyframeMap();
-
-        for (auto it = covisibleKeyframeMap.rbegin(); it != covisibleKeyframeMap.rend(); it++)
-        {
-            int keyframeId = it->first;
-
-            if (keyframeId == 0)
-            {
-                break;
-            }
-
-            if (keyframeId >= keyframe->keyframeId_)
-            {
-                continue;
-            }
-
-            auto keyframe = mapManager_->getKeyframe(keyframeId);
-            if (keyframe == nullptr)
-            {
-                keyframe->removeCovisibleKeyframe(keyframeId);
-                continue;
-            }
-            else if ((int) keyframe->numKeypoints3d_ < state_->baMinNumCommonKeypointsObservations_ / 2)
-            {
-                mapManager_->removeKeyframe(keyframeId);
-                continue;
-            }
-
-            size_t numGoodObservations = 0;
-            size_t numTotal = 0;
-
-            for (const auto &kp: keyframe->getKeypoints3d())
-            {
-                auto mapPoint = mapManager_->getMapPoint(kp.keypointId_);
-
-                if (mapPoint == nullptr)
-                {
-                    mapManager_->removeMapPointObs(kp.keypointId_, keyframeId);
-                    continue;
-                }
-                else if (mapPoint->isBad())
-                {
-                    continue;
-                }
-                else
-                {
-                    size_t numObservedKeyframeIds = mapPoint->getObservedKeyframeIds().size();
-
-                    if (numObservedKeyframeIds > 4)
-                    {
-                        numGoodObservations++;
-                    }
-                }
-
-                numTotal++;
-            }
-
-            float ratio = (float) numGoodObservations / (float) numTotal;
-
-            if (ratio > state_->mapKeyframeFilteringRatio_)
-            {
-                mapManager_->removeKeyframe(keyframeId);
-            }
-        }
+        // Disabled: global map filtering and keyframe removal for performance
+        // (If you want to keep only the last N keyframes, do it here, but skip expensive checks)
+        return;
     }
 }
 
@@ -585,4 +524,24 @@ std::map<int, int> Mapper::matchToMap(const Frame &frame, const float maxProject
     }
 
     return mapPrevIdNewId;
+}
+
+// Local mapping (adapted from OV2SLAM)
+void Mapper::localMapping(std::shared_ptr<Frame> newKeyframe) {
+    // Triangulate new map points from the new keyframe (as in OV2SLAM)
+    triangulateTemporal(*newKeyframe);
+    // Fuse redundant map points, remove outliers, etc. (TODO: port full OV2SLAM logic)
+    // Call local bundle adjustment
+    localBundleAdjustment(newKeyframe);
+}
+
+// Local bundle adjustment (adapted from OV2SLAM)
+void Mapper::localBundleAdjustment(std::shared_ptr<Frame> newKeyframe) {
+    // In OV2SLAM, this would call the Optimizer to perform local BA on the local map
+    // Gather local keyframes and map points (simplified, port full OV2SLAM logic as needed)
+    std::vector<std::shared_ptr<Frame>> localKeyframes = {newKeyframe};
+    std::vector<std::shared_ptr<MapPoint>> localMapPoints;
+    // TODO: Gather all map points observed by local keyframes
+    optimizer_->localBundleAdjustment(localKeyframes, localMapPoints);
+    std::cout << "[Mapper] Local bundle adjustment called for keyframe " << newKeyframe->id_ << std::endl;
 }

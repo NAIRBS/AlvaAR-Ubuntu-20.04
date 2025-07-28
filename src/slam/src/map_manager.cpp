@@ -317,6 +317,35 @@ void MapManager::addMapPoint(const cv::Mat &desc, const cv::Scalar &color)
     pointCloud_.push_back(point);
 }
 
+void MapManager::addMapPoint(const Eigen::Vector3d& pt3d, std::shared_ptr<Frame> keyframe, int keypointIdx) {
+    // OV2SLAM-style: create a new MapPoint, associate with keyframe and keypoint
+    int mapPointId = numMapPointIds_++;
+    std::shared_ptr<MapPoint> mapPoint = std::make_shared<MapPoint>();
+    mapPoint->mapPointId_ = mapPointId;
+    mapPoint->point3d_ = pt3d;
+    mapPoint->is3d_ = true;
+    mapPoint->isObserved_ = true;
+    mapPoint->keyframeId_ = keyframe->keyframeId_;
+    mapPoint->observedKeyframeIds_.insert(keyframe->keyframeId_);
+    // Optionally associate descriptor if available
+    if (keypointIdx >= 0 && keypointIdx < (int)keyframe->getKeypoints().size()) {
+        mapPoint->desc_ = keyframe->getKeypoints()[keypointIdx].desc_;
+    }
+    mapMapPoints_[mapPointId] = mapPoint;
+    numMapPoints_++;
+    // Add to keyframe's local map point ids
+    keyframe->localMapPointIds_.insert(mapPointId);
+}
+
+void MapManager::addKeyframe(std::shared_ptr<Frame> keyframe) {
+    // OV2SLAM-style: add keyframe to map and update covisibility
+    int keyframeId = numKeyframeIds_++;
+    keyframe->keyframeId_ = keyframeId;
+    mapKeyframes_[keyframeId] = keyframe;
+    numKeyframes_++;
+    updateKeyframeConnections(keyframe);
+}
+
 std::shared_ptr<Frame> MapManager::getKeyframe(const int KeyframeId) const
 {
     auto it = mapKeyframes_.find(KeyframeId);
@@ -554,59 +583,19 @@ void MapManager::removeKeyframe(const int keyframeId)
     }
 }
 
-void MapManager::removeMapPoint(const int mapPointId)
-{
-    // Get related map point
-    auto plmit = mapMapPoints_.find(mapPointId);
-
-    // Skip if map point does not exist
-    if (plmit != mapMapPoints_.end())
-    {
-        // Remove all observations from keyframes
-        for (const auto &kfid: plmit->second->getObservedKeyframeIds())
-        {
-            auto pkfit = mapKeyframes_.find(kfid);
-            if (pkfit == mapKeyframes_.end())
-            {
-                continue;
-            }
-
-            pkfit->second->removeKeypointById(mapPointId);
-
-            for (const auto &cokfid: plmit->second->getObservedKeyframeIds())
-            {
-                if (cokfid != kfid)
-                {
-                    pkfit->second->decreaseCovisibleKeyframe(cokfid);
-                }
-            }
+// Remove a map point and all its observations (adapted from OV2SLAM)
+void MapManager::removeMapPoint(std::shared_ptr<MapPoint> mp) {
+    if (!mp) return;
+    // Remove from all keyframes that observe this map point
+    for (const int kfId : mp->getObservedKeyframeIds()) {
+        auto kf = getKeyframe(kfId);
+        if (kf) {
+            kf->localMapPointIds_.erase(mp->mapPointId_);
         }
-
-        // If obs in cur Frame, remove cur obs
-        if (plmit->second->isObserved_)
-        {
-            currFrame_->removeKeypointById(mapPointId);
-        }
-
-        if (plmit->second->is3d_)
-        {
-            numMapPoints_--;
-        }
-
-        // Erase map point and update nb map points
-        mapMapPoints_.erase(plmit);
     }
-
-    Point3D point;
-    point = Point3D();
-    point.r = 0;
-    point.g = 0;
-    point.b = 0;
-    point.x = 0.0;
-    point.y = 0.0;
-    point.z = 0.0;
-
-    pointCloud_.at(mapPointId) = point;
+    // Remove from map manager
+    mapMapPoints_.erase(mp->mapPointId_);
+    // Optionally, remove from pointCloud_ if used
 }
 
 void MapManager::removeMapPointObs(const int mapPointId, const int keyframeId)
@@ -715,4 +704,29 @@ void MapManager::reset()
     mapMapPoints_.clear();
 
     pointCloud_.clear();
+}
+
+// Covisibility graph update (adapted from OV2SLAM)
+void MapManager::updateKeyframeConnections(std::shared_ptr<Frame> keyframe) {
+    // For each map point observed by this keyframe, count shared keyframes
+    std::map<std::shared_ptr<Frame>, int> keyframeCounter;
+    for (const auto& mpId : keyframe->localMapPointIds_) {
+        auto mp = getMapPoint(mpId);
+        if (!mp) continue;
+        for (const int kfId : mp->getObservedKeyframeIds()) {
+            auto kf = getKeyframe(kfId);
+            if (kf && kf != keyframe) {
+                keyframeCounter[kf]++;
+            }
+        }
+    }
+    // Threshold for covisibility (as in OV2SLAM)
+    const int minShared = 15;
+    // Update connections
+    for (const auto& pair : keyframeCounter) {
+        if (pair.second >= minShared) {
+            // Add as neighbor (in OV2SLAM, this is a weighted edge)
+            keyframe->covisibleKeyframeIds_[pair.first->id_] = pair.second;
+        }
+    }
 }

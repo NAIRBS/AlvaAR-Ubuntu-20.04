@@ -32,6 +32,11 @@ public:
     // adds a new map point to the map with desc
     void addMapPoint(const cv::Mat &desc, const cv::Scalar &color = cv::Scalar(200));
 
+    // OV2SLAM-style: Add a new map point with 3D position, associated keyframe, and keypoint index
+    void addMapPoint(const Eigen::Vector3d& pt3d, std::shared_ptr<Frame> keyframe, int keypointIdx);
+    // OV2SLAM-style: Add a new keyframe object
+    void addKeyframe(std::shared_ptr<Frame> keyframe);
+
     // Returns a shared_ptr of the req. keyframe
     std::shared_ptr<Frame> getKeyframe(const int KeyframeId) const;
 
@@ -52,8 +57,8 @@ public:
     // Remove a keyframe from the map
     void removeKeyframe(const int keyframeId);
 
-    // Remove a map point from the map
-    void removeMapPoint(const int mapPointId);
+    // Remove a map point and all its observations (adapted from OV2SLAM)
+    void removeMapPoint(std::shared_ptr<MapPoint> mp);
 
     // Remove a keyframe obs from a map point
     void removeMapPointObs(const int mapPointId, const int keyframeId);
@@ -87,4 +92,10 @@ public:
     std::unordered_map<int, std::shared_ptr<MapPoint>> mapMapPoints_;
 
     std::vector<Point3D> pointCloud_;
+
+    // Covisibility graph (adapted from OV2SLAM)
+    void updateKeyframeConnections(std::shared_ptr<Frame> keyframe);
+
+    // Make localMapping public for stereo SLAM
+    void localMapping(std::shared_ptr<Frame> newKeyframe);
 };

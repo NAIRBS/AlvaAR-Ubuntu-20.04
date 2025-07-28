@@ -15,6 +15,7 @@
 #include "state.hpp"
 #include "utils.hpp"
 #include "visual_frontend.hpp"
+#include "ibow_lcd/lcdetector.h"
 
 class System
 {
@@ -37,10 +38,15 @@ public:
 
     int getFramePoints(int pointsPtr);
 
-private:
-    cv::Mat processPlane(std::vector<Eigen::Vector3d> mapPoints, Sophus::SE3d Twc, int numIterations = 50);
+    // Relocalization and loop closure (adapted from OV2SLAM)
+    bool relocalize(std::shared_ptr<Frame> currFrame);
+    void checkLoopClosure(std::shared_ptr<Frame> currFrame);
+    void addKeyframeToBoW(std::shared_ptr<Frame> keyframe);
 
     int processCameraPose(cv::Mat &image, double timestamp);
+
+private:
+    cv::Mat processPlane(std::vector<Eigen::Vector3d> mapPoints, Sophus::SE3d Twc, int numIterations = 50);
 
     std::shared_ptr<State> state_;
     std::shared_ptr<Frame> currFrame_;
@@ -50,6 +56,7 @@ private:
     std::unique_ptr<VisualFrontend> visualFrontend_;
     std::shared_ptr<FeatureExtractor> featureExtractor_;
     std::shared_ptr<FeatureTracker> featureTracker_;
+    std::unique_ptr<ibow_lcd::LCDetector> lcdetector_; // BoW place recognition
 
     Eigen::Vector3d currTranslation_;
     Eigen::Vector3d prevTranslation_;

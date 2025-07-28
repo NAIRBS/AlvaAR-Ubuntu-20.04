@@ -67,7 +67,7 @@ bool VisualFrontend::process(cv::Mat &image, double timestamp)
 
         if (state_->debug_)
         {
-            std::cout << "- [Visual-Frontend]: Not ready for initialization" << std::endl;
+//            std::cout << "- [Visual-Frontend]: Not ready for initialization" << std::endl;
         }
 
         return false;
@@ -80,7 +80,7 @@ bool VisualFrontend::process(cv::Mat &image, double timestamp)
         {
             if (state_->debug_)
             {
-                std::cout << "- [Visual-Frontend]: Failed to compute pose num times: " << poseFailedCounter_ << std::endl;
+//                std::cout << "- [Visual-Frontend]: Failed to compute pose num times: " << poseFailedCounter_ << std::endl;
             }
 
             poseFailedCounter_++;
@@ -191,7 +191,7 @@ void VisualFrontend::kltTrackingFromMotionPrior()
 
         if (state_->debug_)
         {
-            std::cout << "- [Visual-Frontend]: FromMotionPrior - w. priors : " << numGood << " out of " << numKeypoints << " kps tracked" << std::endl;
+//            std::cout << "- [Visual-Frontend]: FromMotionPrior - w. priors : " << numGood << " out of " << numKeypoints << " kps tracked" << std::endl;
         }
 
         if (numGood < 0.33 * numKeypoints)
@@ -237,7 +237,7 @@ void VisualFrontend::kltTrackingFromMotionPrior()
 
         if (state_->debug_)
         {
-            std::cout << "- [Visual-Frontend]: FromMotionPrior - no prior : " << numGood << " out of " << numKeypoints << " kps tracked" << std::endl;
+//            std::cout << "- [Visual-Frontend]: FromMotionPrior - no prior : " << numGood << " out of " << numKeypoints << " kps tracked" << std::endl;
         }
     }
 }
@@ -250,7 +250,7 @@ bool VisualFrontend::computePose()
     {
         if (state_->debug_)
         {
-            std::cout << "- [Visual-Frontend]: Pose - Not enough kps to compute P3P/PnP" << std::endl;
+//            std::cout << "- [Visual-Frontend]: Pose - Not enough kps to compute P3P/PnP" << std::endl;
         }
 
         return false;
@@ -379,7 +379,7 @@ bool VisualFrontend::computePose()
 
     if (state_->debug_)
     {
-        std::cout << "- [Visual-Frontend]: Pose - Ceres PnP outliers : " << outliersIndices.size() << ", inliers: " << numInliers << std::endl;
+//        std::cout << "- [Visual-Frontend]: Pose - Ceres PnP outliers : " << outliersIndices.size() << ", inliers: " << numInliers << std::endl;
     }
 
     if (!success || numInliers < 5 || outliersIndices.size() > 0.5 * vwpts.size() || Twc.translation().array().isInf().any() || Twc.translation().array().isNaN().any())
@@ -438,7 +438,7 @@ bool VisualFrontend::checkReadyForInit()
     {
         if (state_->debug_)
         {
-            std::cout << "- [Visual-Frontend]: CheckReady - Can't compute 5-pt Essential matrix. Not enough keypoints" << std::endl;
+//            std::cout << "- [Visual-Frontend]: CheckReady - Can't compute 5-pt Essential matrix. Not enough keypoints" << std::endl;
         }
 
         return false;
@@ -490,7 +490,7 @@ bool VisualFrontend::checkReadyForInit()
     {
         if (state_->debug_)
         {
-            std::cout << "- [Visual-Frontend]: CheckReady - Can't compute 5-pt Essential matrix. Not enough keypoints in prev keyframe" << std::endl;
+//            std::cout << "- [Visual-Frontend]: CheckReady - Can't compute 5-pt Essential matrix. Not enough keypoints in prev keyframe" << std::endl;
         }
 
         return false;
@@ -503,7 +503,7 @@ bool VisualFrontend::checkReadyForInit()
     {
         if (state_->debug_)
         {
-            std::cout << "- [Visual-Frontend]: CheckReady - Can't compute 5-pt Essential matrix. Not enough parallax " << avgRotParallax << " px)" << std::endl;
+//            std::cout << "- [Visual-Frontend]: CheckReady - Can't compute 5-pt Essential matrix. Not enough parallax " << avgRotParallax << " px)" << std::endl;
         }
 
         return false;
