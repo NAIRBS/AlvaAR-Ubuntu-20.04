@@ -2,12 +2,12 @@
 #include "system.hpp"
 #include <memory>
 #include <iostream>
-#include "ibow_lcd/lcdetector.h"
+// #include "ibow_lcd/lcdetector.h"
 
 System::System()
 {
-    ibow_lcd::LCDetectorParams params; // Use default or tune as needed
-    lcdetector_ = std::make_unique<ibow_lcd::LCDetector>(params);
+    // ibow_lcd::LCDetectorParams params; // Use default or tune as needed
+    // lcdetector_ = std::make_unique<ibow_lcd::LCDetector>(params);
 }
 
 System::~System()

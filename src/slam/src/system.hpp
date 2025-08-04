@@ -15,7 +15,7 @@
 #include "state.hpp"
 #include "utils.hpp"
 #include "visual_frontend.hpp"
-#include "ibow_lcd/lcdetector.h"
+// #include "ibow_lcd/lcdetector.h"
 
 class System
 {
@@ -56,7 +56,7 @@ private:
     std::unique_ptr<VisualFrontend> visualFrontend_;
     std::shared_ptr<FeatureExtractor> featureExtractor_;
     std::shared_ptr<FeatureTracker> featureTracker_;
-    std::unique_ptr<ibow_lcd::LCDetector> lcdetector_; // BoW place recognition
+    // std::unique_ptr<ibow_lcd::LCDetector> lcdetector_; // BoW place recognition
 
     Eigen::Vector3d currTranslation_;
     Eigen::Vector3d prevTranslation_;
