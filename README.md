@@ -17,9 +17,9 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
 <img width="75" src="examples/public/assets/qr.png">
 
 # This repository is under ongoing development. Planned enhancements are:
-1. ORBSLAM2 to ORBSLAM3, specifically to support Fisheye lens (ORBSLAM3 exclusive)
-2. Monocular Camera to Stereo Camera use
-3. Pipe input from 2 ESP32 Webserver Cam Modules to build a prototype AR Headset (currently only accepts video.mp4 and single mobile phone camera input)
+1. Monocular Camera to Stereo Camera use
+2. Add multithreading support to dependencies and Wasm Modules
+3. Add more interfacing (button to activate functions)
 
 ## File Change Notes
 - The `build.sh` script in `/src/libs` has been adapted for Linux compatibility; the original codebase was developed for macOS.
@@ -48,11 +48,11 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
     # Fetch the latest version of the emsdk (not needed the first time you clone)
     git pull
 
-    # Download and install the latest SDK tools.
-    ./emsdk install 3.1.44
+    # Download and install the SDK tools.
+    ./emsdk install 3.1.45
 
-    # Make the "latest" SDK "active" for the current user. (writes .emscripten file)
-    ./emsdk activate 3.1.44
+    # Make the SDK "active" for the current user. (writes .emscripten file)
+    ./emsdk activate 3.1.45
 
     # Activate PATH and other environment variables in the current terminal
     source ~/emsdk/emsdk_env.sh
@@ -101,9 +101,11 @@ For convenience, a copy of all required libraries has been included in the libs/
 
 **Note that this script has been changed such that march-native flags do not cause late-stage conflicts later.**
 
+**NOTE THAT THIS SCRIPT CAN TAKE UP TO 90 MINUTES TO RUN ON THE JETSON! Do not falter even if it hangs near the 99% mark for ceres or the 100% mark for opencv.**
+
 ```
     $: cd ~/AlvaAR-Ubuntu-20.04/src/libs/
-    $: ./build.sh
+    $: ./build.sH
 ```
 
 ## 2. AlvaAR / SLAM Libraries
@@ -111,10 +113,7 @@ Then, run the following:
 
 ```
     $: cd ~/AlvaAR-Ubuntu-20.04/src/slam
-    $: mkdir build/
-    $: cd build/
-    $: emcmake cmake .. 
-    $: emmake make install
+    $: ./build.sh
 ```
 
 ## 3. HTTPS Server (if required)
@@ -148,7 +147,6 @@ To run the examples on another device in your local network, they must be served
 #### 3) Run
 ```
     $: cd ~/AlvaAR-Ubuntu-20.04/examples/
-    $: nvm use 18
     $: npm start
 ``` 
 
@@ -176,7 +174,7 @@ Don’t do this unless the site is one you trust or have developed.
 
 ## Usage with ESP32 Camera Modules
 Use this ROS2 node to publish rectified Stereo ESP32 Camera Input: [stereo_camera_pipeline](https://github.com/Shye0930/stereo_camera_pipeline)
-1. Instructions on optimal ESP32 Camera flashing and calibration here: [ros2_rolling](https://github.com/Shye0930/fyp/tree/main/camera/camera_calibration/ros2_rolling) << This is currently privated
+1. Instructions on optimal ESP32 Camera flashing and calibration here: [ros2_rolling](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/ROS2%20Node%20Setup)
 2. Once you've flashed your ESP32s (pinhole cameras) and obtained calibration matrixes/data from step 1, you need to connect your ESP32s (with hardcoded SSID login) to the local wifi/hotspot, you also need to connect your machine to the same wifi/hotspot. You also need to format the calibration data into the yaml config file format.
 3. Make sure to update the ip addresses assigned by your wifi/hotspot and the calibration file location in stereo_pipeline.launch.py, then run the following to start publishing video frames in ROS2 topics:
 ```
@@ -196,22 +194,22 @@ $: ros2 topic list
 ```
 4. Run this script to publish the data in the ROS2 topics, this is so that AlvaAR is able to grab the frames on the receiving end from the ESP32 Camera input:
 ```
-    $: python3 ros2_ws_server_blob_both.py
+    $: python3 ros2_ws_server.py
 ```
 5. Then run:
 ```
     $: cd ~/AlvaAR-Ubuntu-20.04/examples/
     $: npm start
 ```
-**To run with ESP32 Stereo Input: Open [https://YOUR_IP:8080/both_esp32blob.html](https://YOUR_IP:8080/both_esp32blob.html) in your browser.**
+**To run with ESP32 Stereo Input: Open [https://YOUR_IP:8080/stereo.html](https://YOUR_IP:8080/both_esp32blob.html) in your browser.**
 
 Note that if you are running on WSL, the IP provided in the terminal will not work, run:
 ```
     $: hostname -I
 ```
 And use that IP address instead, etc: 
-Monocular SLAM: [https://WSL_IP:8080/mono_esp32blob.html](https://WSL_IP:8080/mono_esp32blob.html)
-Stereo SLAM: [https://WSL_IP:8080/stereo_esp32blob.html](https://WSL_IP:8080/stereo_esp32blob.html)
+Monocular SLAM: [https://WSL_IP:8080/mono.html](https://WSL_IP:8080/mono.html)
+Stereo SLAM: [https://WSL_IP:8080/stereo.html](https://WSL_IP:8080/stereo.html)
 
 You also need to forward the ports from WSL to your actual machine for the ESP32 streams that are being published by the python scripts to reach AlvaAR, you can do this in your Main Window's PowerShell (remember to run in administrator mode):
 ```
