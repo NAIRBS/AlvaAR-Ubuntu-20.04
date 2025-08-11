@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
+  <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
+  <title>AlvaAR Stereo SLAM Demo with Pose View</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      font-family: 'Helvetica', sans-serif;
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #main-container {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    #container {
+      position: relative;
+      width: 960px;
+      height: 320px;
+      overflow: hidden;
+      line-height: 0;
+      border: 2px solid #333;
+      box-shadow: 0 0 10px #000;
+    }
+
+    #container > * {
+      position: absolute;
+      display: block;
+      user-select: none;
+      top: 0;
+      left: 0;
+      width: 960px;
+      height: 320px;
+      animation: fadeIn 1.2s;
+    }
+
+    #pose-container {
+      width: 320px;
+      height: 320px;
+      border: 2px solid #333;
+      box-shadow: 0 0 10px #000;
+      background: #fff;
+      position: relative;
+    }
+
+    #pose-container::after {
+      content: "Camera Pose Visualization";
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #333;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 10;
+    }
+
+    canvas {
+      display: block;
+      width: 960px;
+      height: 320px;
+    }
+
+    #splash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      opacity: 1;
+    }
+
+    #overlay {
+      position: absolute;
+      font-size: 16px;
+      z-index: 2;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    #overlay::before {
+      position: absolute;
+      width: 100%;
+      white-space: pre-wrap;
+      content: "Waiting for ROS2 camera stream \A (topics: /stereo/left/rectified_images/compressed) \A (topics: /stereo/right/rectified_images/compressed)";
+      top: calc(50% + 50px);
+      text-align: center;
+      color: #949494;
+    }
+
+    #overlay button {
+      background: transparent;
+      border: 1px solid white;
+      border-radius: 4px;
+      color: white;
+      padding: 12px 18px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    @keyframes fadeIn {
+      0% { opacity: 0; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    @media screen and (max-device-width: 480px) and (orientation: landscape) {
+      #main-container { display: none; }
+      body::before {
+        content: "Rotate device to portrait mode.";
+        color: white;
+      }
+    }
+
+    @media screen and (max-device-width: 480px) and (orientation: portrait) {
+      #main-container { display: flex; }
+      body::before { content: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="main-container">
+  <div id="container"></div>
+  <div id="pose-container"></div>
+</div>
+<div id="overlay">
+  <button id="start_button">Start</button>
+  <div id="splash"></div>
+</div>
+
+<script type="module">
+  import Module from './assets/alva_ar.js';
+  import { Stats } from './assets/stats.js';
+  import { ARCamView, ARSimpleMap } from './assets/view.js';
+  import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
+
+  async function waitForEmscriptenModule(ModuleInstance) {
+    return new Promise(resolve => {
+      if (ModuleInstance && ModuleInstance.calledRun) {
+        resolve();
+      } else if (ModuleInstance && typeof ModuleInstance.onRuntimeInitialized === 'function') {
+        ModuleInstance.onRuntimeInitialized = resolve;
+      } else {
+        const check = setInterval(() => {
+          if (ModuleInstance && ModuleInstance.calledRun) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 50);
+      }
+    });
+  }
+
+  function createStereoAlvaAR(ModuleInstance) {
+    return {
+      findStereoCameraPose(leftFrame, rightFrame) {
+        if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+          console.error('Emscripten Module or findStereoCameraPose not loaded');
+          return null;
+        }
+        const malloc = ModuleInstance.cwrap('malloc', 'number', ['number']);
+        const free = ModuleInstance.cwrap('free', null, ['number']);
+        const leftPtr = malloc(leftFrame.data.length);
+        const rightPtr = malloc(rightFrame.data.length);
+        ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
+        ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
+        const posePtr = malloc(7 * 4);
+        const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
+        let pose = null;
+        if (ok) {
+          pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
+        }
+        free(leftPtr);
+        free(rightPtr);
+        free(posePtr);
+        return pose;
+      },
+      reset() {
+        if (typeof ModuleInstance.reset === 'function') {
+          ModuleInstance.reset();
+        }
+      },
+      getFramePoints() {
+        if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+          // Allocate buffer for up to 2048 points (4096 ints)
+          const n = 4096;
+          const buf = ModuleInstance._malloc(n * 4); // 4 bytes per int
+          const numPoints = ModuleInstance.getStereoFramePoints(buf);
+          const result = [];
+          const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
+          for (let i = 0; i < numPoints; ++i) {
+            result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+          }
+          ModuleInstance._free(buf);
+          return result;
+        }
+        return [];
+      }
+    };
+  }
+
+  function connectWebSocketFrameStream(callback) {
+    const ws = new WebSocket("ws://localhost:8765");
+    ws.binaryType = "arraybuffer";
+    ws.onopen = () => {
+      console.log("✅ Connected to WebSocket video stream");
+    };
+    ws.onerror = err => {
+      console.error("❌ WebSocket error:", err);
+    };
+    ws.onclose = () => {
+      console.warn("⚠️ WebSocket connection closed");
+    };
+    ws.onmessage = async event => {
+      try {
+        const arrayBuffer = event.data;
+        const view = new Uint8Array(arrayBuffer);
+        const sourceTag = String.fromCharCode(view[0]); // 'L' or 'R'
+        const jpegData = view.slice(1);
+        const blob = new Blob([jpegData], { type: 'image/jpeg' });
+        const bitmap = await createImageBitmap(blob);
+        callback(sourceTag, bitmap);
+      } catch (err) {
+        console.error("❌ Failed to decode image blob:", err);
+      }
+    };
+    return {
+      close() {
+        if (ws) ws.close();
+      }
+    };
+  }
+
+  async function main() {
+    const $container = document.getElementById('container');
+    const $poseContainer = document.getElementById('pose-container');
+    const $view = document.createElement('div');
+    const $canvas = document.createElement('canvas');
+    const $overlay = document.getElementById('overlay');
+    const $start = document.getElementById('start_button');
+    const $splash = document.getElementById('splash');
+    const splashFadeTime = 800;
+
+    let alva, view, poseMap, stats;
+    let latestFrameBitmapLeft = null;
+    let latestFrameBitmapRight = null;
+
+    async function demoStream() {
+      const ModuleInstance = await Module();
+      await waitForEmscriptenModule(ModuleInstance);
+      // Fetch the YAML file and set it in the WASM module
+      const yamlResponse = await fetch('./assets/stereo_camera.yaml');
+      const yamlText = await yamlResponse.text();
+      if (typeof ModuleInstance.setStereoCalibrationYAML === 'function') {
+        ModuleInstance.setStereoCalibrationYAML(yamlText);
+      } else {
+        console.error('setStereoCalibrationYAML is not available on the Module instance.');
+      }
+      // Persistent buffer allocation
+      const leftFrameSize = 480 * 320 * 4;
+      const framepointsBufSize = 4096 * 4;
+      const leftPtr = ModuleInstance._malloc(leftFrameSize);
+      const rightPtr = ModuleInstance._malloc(leftFrameSize);
+      const framepointsBuf = ModuleInstance._malloc(framepointsBufSize);
+      window.addEventListener('unload', () => {
+        ModuleInstance._free(leftPtr);
+        ModuleInstance._free(rightPtr);
+        ModuleInstance._free(framepointsBuf);
+      });
+      alva = {
+        findStereoCameraPose(leftFrame, rightFrame) {
+          if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+            console.error('Emscripten Module or findStereoCameraPose not loaded');
+            return null;
+          }
+          ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
+          ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
+          const posePtr = ModuleInstance._malloc(7 * 4);
+          const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
+          let pose = null;
+          if (ok) {
+            pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
+          }
+          ModuleInstance._free(posePtr);
+          return pose;
+        },
+        reset() {
+          if (typeof ModuleInstance.reset === 'function') {
+            ModuleInstance.reset();
+          }
+        },
+        getFramePoints() {
+          if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+            const n = 4096;
+            const buf = ModuleInstance._malloc(n * 4 * 2); // 2 ints per point
+            const numPoints = ModuleInstance.getStereoFramePoints(buf);
+            const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
+            const result = [];
+            for (let i = 0; i < numPoints; ++i) {
+              result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+            }
+            ModuleInstance._free(buf);
+            return result;
+          }
+          return [];
+        }
+      };
+      // Restrict $view overlay to left image only
+      $view.style.position = 'absolute';
+      $view.style.left = '0px';
+      $view.style.top = '0px';
+      $view.style.width = '480px';
+      $view.style.height = '320px';
+      $view.style.zIndex = '10';
+      view = new ARCamView($view, 480, 320, 0, 0, -8); // Place hexagon at z = -2 for normalized coordinates
+
+      // Create the pose visualization map
+      poseMap = new ARSimpleMap($poseContainer, 320, 320);
+      
+      // Initialize tracking state flags
+      poseMap.needsHexagonRespawn = false;
+      poseMap.initialCameraWorldTransform = null; // Store initial camera world pose
+      
+      // Add additional visual elements to make the scene more informative
+      // Add a coordinate system indicator at the origin
+      const originAxes = new THREE.AxesHelper(1.0);
+      originAxes.position.set(0, 0, 0);
+      poseMap.scene.add(originAxes);
+      
+      // // Add a larger grid for better spatial reference
+      // const largeGrid = new THREE.GridHelper(20, 20, 0x444444, 0x888888);
+      // largeGrid.position.y = -0.5;
+      // poseMap.scene.add(largeGrid);
+      
+      // Add some ambient lighting to make objects more visible
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+      poseMap.scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 5, 5);
+      poseMap.scene.add(directionalLight);
+      
+      // Add a status indicator text
+      const statusCanvas = document.createElement('canvas');
+      const statusContext = statusCanvas.getContext('2d');
+      statusCanvas.width = 256;
+      statusCanvas.height = 64;
+      statusContext.fillStyle = '#333333';
+      statusContext.font = 'Bold 20px Arial';
+      statusContext.textAlign = 'center';
+      statusContext.fillText('WAITING FOR', 128, 32);
+      statusContext.fillText('SLAM POSE', 128, 56);
+      
+      const statusTexture = new THREE.CanvasTexture(statusCanvas);
+      const statusGeometry = new THREE.PlaneGeometry(4, 1);
+      const statusMaterial = new THREE.MeshBasicMaterial({ 
+        map: statusTexture, 
+        transparent: true, 
+        side: THREE.DoubleSide 
+      });
+      const statusLabel = new THREE.Mesh(statusGeometry, statusMaterial);
+      statusLabel.position.set(0, 2, 0);
+      poseMap.scene.add(statusLabel);
+      poseMap.statusLabel = statusLabel;
+      
+      // Debug: Log poseMap creation and initial state
+      // console.log('=== POSE MAP CREATION DEBUG ===');
+      // console.log('poseMap created:', poseMap);
+      // console.log('poseMap type:', typeof poseMap);
+      // console.log('poseMap.scene:', poseMap.scene);
+      // console.log('poseMap.scene.children count:', poseMap.scene.children.length);
+      // console.log('poseMap.camera:', poseMap.camera);
+      // console.log('poseMap.renderer:', poseMap.renderer);
+      // console.log('poseMap.scene.children:', poseMap.scene.children);
+      
+      // Camera representation will be created when pose is detected
+
+      stats = Stats;
+      stats.add('total');
+      stats.add('video');
+      stats.add('slam');
+
+      $container.appendChild($canvas);
+      $container.appendChild($view);
+      document.body.appendChild(stats.el);
+
+      document.body.addEventListener("click", () => alva.reset(), false);
+
+      connectWebSocketFrameStream((source, bitmap) => {
+        if (source === 'L') latestFrameBitmapLeft = bitmap;
+        else if (source === 'R') latestFrameBitmapRight = bitmap;
+      });
+
+      function render() {
+        stats.next();
+        stats.start('total');
+
+
+
+        const spacing = 0;
+        const boxWidth = 480;
+        const boxHeight = 320;
+        const width = 480 * 2 + spacing;
+        const height = 320;
+        $canvas.width = width;
+        $canvas.height = height;
+        const ctx = $canvas.getContext('2d');
+        ctx.clearRect(0, 0, $canvas.width, $canvas.height);
+
+        if (!document.hidden) {
+          if (latestFrameBitmapLeft && latestFrameBitmapRight) {
+            ctx.drawImage(latestFrameBitmapLeft, 0, 0, 480, 320);
+            ctx.drawImage(latestFrameBitmapRight, 480, 0, 480, 320);
+            stats.start('video');
+            const leftFrame = ctx.getImageData(0, 0, 480, 320);
+            const rightFrame = ctx.getImageData(480, 0, 480, 320);
+            stats.stop('video');
+            stats.start('slam');
+            const pose = alva.findStereoCameraPose(leftFrame, rightFrame);
+            stats.stop('slam');
+            if (pose) {
+                view.updateCameraPose(pose);
+                
+                // Update the pose visualization map
+                if (poseMap) {
+                  // Convert stereo pose (7 elements) to the format expected by the map
+                  const t = [pose[0], pose[1], pose[2]];
+                  const q = [pose[3], pose[4], pose[5], pose[6]];
+                  
+                  // Create camera helper if it doesn't exist
+                  if (!poseMap.camHelper) {
+                    console.log('Creating new camera helper...');
+                    
+                    // Create a camera-like object similar to video.html style
+                    const cameraGroup = new THREE.Group();
+                    
+                    // Main camera body (box)
+                    const bodyGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.4);
+                    const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+                    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                    cameraGroup.add(body);
+                    
+                    // Camera lens (cylinder) - positioned to face FORWARD (toward hexagon)
+                    const lensGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.1, 8);
+                    const lensMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                    const lens = new THREE.Mesh(lensGeometry, lensMaterial);
+                    lens.rotation.x = Math.PI / 2; // Rotate to point forward
+                    lens.position.z = 0.25; // Position at FRONT of camera (positive Z) to face hexagon
+                    cameraGroup.add(lens);
+
+                    // Camera viewfinder (small box on top) - positioned to face FORWARD
+                    const viewfinderGeometry = new THREE.BoxGeometry(0.15, 0.1, 0.05);
+                    const viewfinderMaterial = new THREE.MeshBasicMaterial({ color: 0x666666 });
+                    const viewfinder = new THREE.Mesh(viewfinderGeometry, viewfinderMaterial);
+                    viewfinder.position.y = 0.15; // Position on top
+                    viewfinder.position.z = 0.1; // Slightly forward (positive Z) to face hexagon
+                    cameraGroup.add(viewfinder);
+                    
+                    // Add coordinate axes for orientation reference
+                    const axesHelper = new THREE.AxesHelper(0.2);
+                    cameraGroup.add(axesHelper);
+                    
+                    // Add a visual indicator showing the camera's viewing direction
+                    // Create an arrow pointing toward the hexagon (positive Z direction)
+                    const arrowGeometry = new THREE.ConeGeometry(0.05, 0.2, 8);
+                    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // Green arrow
+                    const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+                    arrow.rotation.x = Math.PI / 2; // Point forward
+                    arrow.position.z = 0.4; // Position at front of camera
+                    cameraGroup.add(arrow);
+                    
+                    poseMap.camHelper = cameraGroup;
+                    poseMap.scene.add(poseMap.camHelper);
+                  } else {
+                    // console.log('Using existing camera helper');
+                    // console.log('Camera helper visible before update:', poseMap.camHelper.visible);
+                    // console.log('Camera helper children count:', poseMap.camHelper.children.length);
+                  }
+                  
+                  // Update the camera helper position and orientation
+                  if (poseMap.initialCameraWorldTransform) {
+                    // Calculate relative transformation from initial pose
+                    const relativePosition = new THREE.Vector3();
+                    relativePosition.subVectors(
+                      new THREE.Vector3(t[0], t[1], t[2]),
+                      poseMap.initialCameraWorldTransform.position
+                    );
+                    
+                    // Apply the relative position to the camera helper
+                    poseMap.camHelper.position.copy(relativePosition);
+                    
+                    // For quaternion, we need to calculate the relative rotation
+                    const initialQuat = poseMap.initialCameraWorldTransform.quaternion;
+                    const currentQuat = new THREE.Quaternion(q[0], q[1], q[2], q[3]);
+                    const relativeQuat = currentQuat.clone().multiply(initialQuat.invert());
+                    
+                    poseMap.camHelper.quaternion.copy(relativeQuat);
+                    
+                    // console.log('Camera helper positioned relative to initial pose:', relativePosition);
+                    // console.log('Relative quaternion applied:', relativeQuat);
+                  } else {
+                    // Fallback to absolute positioning if initial transform not set yet
+                    poseMap.camHelper.position.set(t[0], t[1], t[2]);
+                    poseMap.camHelper.quaternion.set(q[0], q[1], q[2], q[3]);
+                  }
+                  
+                  poseMap.camHelper.updateMatrix();
+                  poseMap.camHelper.updateMatrixWorld();
+                  
+                  // Make sure camera helper is visible when pose is detected
+                  if (!poseMap.camHelper.visible) {
+                    console.log('Making camera helper visible - pose detected');
+                    poseMap.camHelper.visible = true;
+                  }
+                  
+                  // Make sure connection line is visible when pose is detected
+                  if (poseMap.connectionLine && !poseMap.connectionLine.visible) {
+                    console.log('Making connection line visible - pose detected');
+                    poseMap.connectionLine.visible = true;
+                  }
+                  
+                  // Update status label to show tracking state
+                  if (poseMap.statusLabel) {
+                    const statusCanvas = poseMap.statusLabel.material.map.image;
+                    const statusContext = statusCanvas.getContext('2d');
+                    statusContext.clearRect(0, 0, statusCanvas.width, statusCanvas.height);
+                    statusContext.fillStyle = '#00aa00'; // Green for tracking
+                    statusContext.font = 'Bold 20px Arial';
+                    statusContext.textAlign = 'center';
+                    statusContext.fillText('TRACKING', 128, 32);
+                    statusContext.fillText('ACTIVE', 128, 56);
+                    poseMap.statusLabel.material.map.needsUpdate = true;
+                  }
+                  
+                  // Check if camera helper might be outside camera frustum
+                  const frustum = new THREE.Frustum();
+                  const matrix = new THREE.Matrix4().multiplyMatrices(poseMap.camera.projectionMatrix, poseMap.camera.matrixWorldInverse);
+                  frustum.setFromProjectionMatrix(matrix);
+                  const inFrustum = frustum.containsPoint(poseMap.camHelper.position);
+                  //console.log('Camera helper in camera frustum:', inFrustum);
+                  
+                  // Check renderer state
+                  //console.log('Renderer info:', poseMap.renderer.info);
+                  //console.log('Renderer state:', poseMap.renderer.state);
+                  
+                  // Check for WebGL errors
+                  const gl = poseMap.renderer.getContext();
+                  const error = gl.getError();
+                  if (error !== gl.NO_ERROR) {
+                    console.warn('WebGL error detected:', error);
+                  }
+                  
+                  // Create and show hexagon when pose is detected (similar to video.html behavior)
+                  if (!poseMap.hexagonObject) {
+                    console.log('Creating hexagon object for pose visualization...');
+                    const hexagonGeometry = new THREE.IcosahedronGeometry(1, 0);
+                    // Use a more visible material with better contrast
+                    const hexagonMaterial = new THREE.MeshBasicMaterial({ 
+                      color: 0x0066ff, // Blue color for better visibility
+                      transparent: true,
+                      opacity: 0.8
+                    });
+                    poseMap.hexagonObject = new THREE.Mesh(hexagonGeometry, hexagonMaterial);
+                    
+                    // Make hexagon 25% the size of the camera (scale to match camera dimensions)
+                    // Camera body is 0.3 x 0.2 x 0.4, so use the largest dimension
+                    const cameraSize = Math.max(0.3, 0.2, 0.4);
+                    poseMap.hexagonObject.scale.set(cameraSize * 0.5, cameraSize * 0.5, cameraSize * 0.5);
+                    
+                    // Add a subtle glow effect to indicate this is the anchor point
+                    const glowGeometry = new THREE.IcosahedronGeometry(1.2, 0);
+                    const glowMaterial = new THREE.MeshBasicMaterial({ 
+                      color: 0x0066ff, 
+                      transparent: true, 
+                      opacity: 0.3 
+                    });
+                    const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+                    glowMesh.scale.copy(poseMap.hexagonObject.scale);
+                    poseMap.hexagonObject.add(glowMesh);
+                    
+                    // Add a text label above the hexagon to indicate it's the anchor point
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = 256;
+                    canvas.height = 64;
+                    context.fillStyle = '#0066ff';
+                    context.font = 'Bold 24px Arial';
+                    context.textAlign = 'center';
+                    context.fillText('ANCHOR', 128, 32);
+                    context.fillText('POINT', 128, 56);
+                    
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const labelGeometry = new THREE.PlaneGeometry(2, 0.5);
+                    const labelMaterial = new THREE.MeshBasicMaterial({ 
+                      map: texture, 
+                      transparent: true, 
+                      side: THREE.DoubleSide 
+                    });
+                    const label = new THREE.Mesh(labelGeometry, labelMaterial);
+                    label.position.y = 0.5; // Position above the hexagon
+                    label.position.z = 0.1; // Slightly in front
+                    poseMap.hexagonObject.add(label);
+                    
+                    poseMap.hexagonObject.visible = false; // Start hidden
+                    poseMap.scene.add(poseMap.hexagonObject);
+                    console.log('Hexagon object created and added to scene');
+                  }
+                  
+                  // Show hexagon when pose is detected and anchor it in world space
+                  // Also respawn if we lost tracking and regained it
+                  if (poseMap.hexagonObject && (!poseMap.hexagonObject.visible || poseMap.needsHexagonRespawn)) {
+                    if (poseMap.needsHexagonRespawn) {
+                      console.log('Respawning hexagon - tracking regained after loss');
+                    } else {
+                      console.log('Making hexagon visible - pose detected!');
+                    }
+                    
+                    poseMap.hexagonObject.visible = true;
+                    
+                    // Store the initial camera world transform if this is the first pose
+                    if (!poseMap.initialCameraWorldTransform) {
+                      console.log('=== COORDINATE SYSTEM SETUP ===');
+                      console.log('Storing initial camera world transform for coordinate system setup');
+                      console.log('Initial camera world position:', poseMap.camHelper.position);
+                      console.log('Initial camera world quaternion:', poseMap.camHelper.quaternion);
+                      
+                      poseMap.initialCameraWorldTransform = {
+                        position: poseMap.camHelper.position.clone(),
+                        quaternion: poseMap.camHelper.quaternion.clone()
+                      };
+                      
+                      // Set hexagon to origin (0,0,0) of the poseMap scene
+                      poseMap.hexagonObject.position.set(t[0], t[1], t[2] + 2);
+                      console.log(`Hexagon anchored at origin (${t[0]}, ${t[1]}, ${t[2] + 2}) of poseMap scene`);
+                      
+                      // Position camera helper at a distance from the hexagon so both are visible
+                      const cameraOffset = 3.0; // Distance from hexagon
+                      poseMap.camHelper.position.set(t[0], t[1], t[2]);
+                      console.log(`Camera helper positioned at (${t[0]}, ${t[1]}, ${t[2]}) of poseMap scene`);
+                      
+                      // Adjust poseMap camera to frame both objects
+                      // const viewerOffset = 8.0; // Distance to view both objects
+                      // poseMap.camera.position.set(viewerOffset, 0, 0);
+                      // poseMap.camera.lookAt(0, 0, 0);
+                      // console.log('PoseMap camera positioned at (0,0,', viewerOffset, ') to frame both objects');
+                      // console.log('=== END COORDINATE SYSTEM SETUP ===');
+                    } else {
+                      // For subsequent poses, keep hexagon at origin
+                      poseMap.hexagonObject.position.set(0, 0, 0);
+                      console.log('Hexagon maintained at origin (0,0,0)');
+                    }
+                    
+                    // Clear the respawn flag since we've successfully respawned
+                    poseMap.needsHexagonRespawn = false;
+                  }
+                  
+                  // The hexagon stays anchored in world space (like video.html objects)
+                  // The camera moves around this fixed hexagon, demonstrating pose visualization
+                    
+                    // Add a visual connection line between camera and hexagon to show spatial relationship
+                    if (!poseMap.connectionLine) {
+                      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(0, 0, 0), // Hexagon position
+                        new THREE.Vector3(0, 0, 0)  // Camera position (will be updated)
+                      ]);
+                      const lineMaterial = new THREE.LineBasicMaterial({ 
+                        color: 0x00ff00, 
+                        linewidth: 2,
+                        transparent: true,
+                        opacity: 0.6
+                      });
+                      poseMap.connectionLine = new THREE.Line(lineGeometry, lineMaterial);
+                      poseMap.scene.add(poseMap.connectionLine);
+                      //console.log('Connection line created between camera and hexagon');
+                    }
+                    
+                    // Update the connection line to show current camera position relative to hexagon
+                    if (poseMap.connectionLine) {
+                      const points = poseMap.connectionLine.geometry.attributes.position;
+                      points.setXYZ(0, 0, 0, 0); // Hexagon at origin
+                      points.setXYZ(1, 
+                        poseMap.camHelper.position.x, 
+                        poseMap.camHelper.position.y, 
+                        poseMap.camHelper.position.z
+                      ); // Current camera position
+                      points.needsUpdate = true;
+                    }
+                }
+                        } else {
+              view.lostCamera();
+              
+              // Hide both hexagon and camera helper when camera is lost
+              if (poseMap) {
+                if (poseMap.hexagonObject) {
+                  console.log('Hiding hexagon - camera lost');
+                  poseMap.hexagonObject.visible = false;
+                }
+                if (poseMap.camHelper) {
+                  console.log('Hiding camera helper - camera lost');
+                  poseMap.camHelper.visible = false;
+                }
+                if (poseMap.connectionLine) {
+                  console.log('Hiding connection line - camera lost');
+                  poseMap.connectionLine.visible = false;
+                }
+                
+                // Update status label to show tracking lost
+                if (poseMap.statusLabel) {
+                  const statusCanvas = poseMap.statusLabel.material.map.image;
+                  const statusContext = statusCanvas.getContext('2d');
+                  statusContext.clearRect(0, 0, statusCanvas.width, statusCanvas.height);
+                  statusContext.fillStyle = '#aa0000'; // Red for lost tracking
+                  statusContext.font = 'Bold 20px Arial';
+                  statusContext.textAlign = 'center';
+                  statusContext.fillText('LOST', 128, 32);
+                  statusContext.fillText('TRACKING', 128, 56);
+                  poseMap.statusLabel.material.map.needsUpdate = true;
+                }
+                
+                // Mark that we need to respawn the hexagon when pose is regained
+                poseMap.needsHexagonRespawn = true;
+                // Also clear the initial transform so it's re-established on next pose
+                poseMap.initialCameraWorldTransform = null;
+              }
+              
+              
+              
+              // ==== STEREO SLAM ADDITION: Use getStereoFramePoints for stereo mode ====
+              const dots = alva.getFramePoints();
+              for (const p of dots) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(p.x, p.y, 2, 2);
+              }
+            }
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(0, 0, 170, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Left Camera (Stereo)", 10, 18);
+          } else if (latestFrameBitmapLeft) {
+            ctx.drawImage(latestFrameBitmapLeft, 0, 0, 480, 320);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(0, 0, 110, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Left Camera", 10, 18);
+          }
+          if (latestFrameBitmapRight) {
+            ctx.drawImage(latestFrameBitmapRight, 480, 0, 480, 320);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(480, 0, 120, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Right Camera", 490, 18);
+          }
+          ctx.beginPath();
+          ctx.moveTo(480, 0);
+          ctx.lineTo(480, 320);
+          ctx.strokeStyle = "#333";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        stats.stop('total');
+        stats.render();
+        requestAnimationFrame(render);
+      }
+      render();
+    }
+
+      setTimeout(() => {
+        $splash.remove();
+        $start.addEventListener('click', () => {
+          $overlay.remove();
+          demoStream();
+        }, { once: true });
+      }, splashFadeTime);
+    }
+
+        window.addEventListener('load', main);
+  </script>
+</body>
+</html>

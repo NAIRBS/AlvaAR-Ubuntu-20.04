@@ -173,8 +173,9 @@ If met with a <b>ERR_CERT_INVALID</b> error in Chrome, try typing <i>badidea</i>
 Don’t do this unless the site is one you trust or have developed.
 
 ## Usage with ESP32 Camera Modules
+First setup your ROS2 Environment according to this guide: [ROS2 Setup](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/Rectification%20Node%20Setup)
 Use this ROS2 node to publish rectified Stereo ESP32 Camera Input: [stereo_camera_pipeline](https://github.com/Shye0930/stereo_camera_pipeline)
-1. Instructions on optimal ESP32 Camera flashing and calibration here: [ros2_rolling](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/ROS2%20Node%20Setup)
+1. Instructions on optimal ESP32 Camera flashing and calibration here: [Calibration Guide](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/ESP32%20Calibration%20Setup)
 2. Once you've flashed your ESP32s (pinhole cameras) and obtained calibration matrixes/data from step 1, you need to connect your ESP32s (with hardcoded SSID login) to the local wifi/hotspot, you also need to connect your machine to the same wifi/hotspot. You also need to format the calibration data into the yaml config file format.
 3. Make sure to update the ip addresses assigned by your wifi/hotspot and the calibration file location in stereo_pipeline.launch.py, then run the following to start publishing video frames in ROS2 topics:
 ```

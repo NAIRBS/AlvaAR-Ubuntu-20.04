@@ -585,13 +585,13 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                 frame->setTwc(current_pose);
                 
                         // Debug: Log successful tracking
-        std::cerr << "[StereoSLAM] Monocular tracking successful (features: " << tracked_kps_left.size() << ")" << std::endl;
+        //std::cerr << "[StereoSLAM] Monocular tracking successful (features: " << tracked_kps_left.size() << ")" << std::endl;
             } else {
                 // If monocular SLAM fails, keep the last pose
                 current_pose = last_pose;
                 
                 // Debug: Log tracking failure
-                std::cerr << "[StereoSLAM] Monocular tracking failed (status: " << status << ")" << std::endl;
+                //std::cerr << "[StereoSLAM] Monocular tracking failed (status: " << status << ")" << std::endl;
             }
         } else {
             // Fallback: keep the last pose if monocular system not available
