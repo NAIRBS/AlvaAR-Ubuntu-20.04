@@ -174,9 +174,11 @@ Don’t do this unless the site is one you trust or have developed.
 
 ## Usage with ESP32 Camera Modules
 First setup your ROS2 Environment according to this guide: [ROS2 Setup](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/Rectification%20Node%20Setup)
+
 Use this ROS2 node to publish rectified Stereo ESP32 Camera Input: [stereo_camera_pipeline](https://github.com/Shye0930/stereo_camera_pipeline)
+
 1. Instructions on optimal ESP32 Camera flashing and calibration here: [Calibration Guide](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/ESP32%20Calibration%20Setup)
-2. Once you've flashed your ESP32s (pinhole cameras) and obtained calibration matrixes/data from step 1, you need to connect your ESP32s (with hardcoded SSID login) to the local wifi/hotspot, you also need to connect your machine to the same wifi/hotspot. You also need to format the calibration data into the yaml config file format.
+2. Once you've flashed your ESP32s (pinhole cameras) and obtained calibration matrixes/data from step 1, you need to connect your ESP32s (with hardcoded SSID login) to the local wifi/hotspot, you also need to connect your machine to the same wifi/hotspot. You also need to format the calibration data into the yaml config file format. For the author's convenience, these 2 files that need to be modified has already been added to this folder (calibration file in config and stereo_pipeline.launch.py)
 3. Make sure to update the ip addresses assigned by your wifi/hotspot and the calibration file location in stereo_pipeline.launch.py, then run the following to start publishing video frames in ROS2 topics:
 ```
     $: ros2 launch stereo_camera_pipeline stereo_pipeline.launch.py
@@ -209,7 +211,9 @@ Note that if you are running on WSL, the IP provided in the terminal will not wo
     $: hostname -I
 ```
 And use that IP address instead, etc: 
+
 Monocular SLAM: [https://WSL_IP:8080/mono.html](https://WSL_IP:8080/mono.html)
+
 Stereo SLAM: [https://WSL_IP:8080/stereo.html](https://WSL_IP:8080/stereo.html)
 
 You also need to forward the ports from WSL to your actual machine for the ESP32 streams that are being published by the python scripts to reach AlvaAR, you can do this in your Main Window's PowerShell (remember to run in administrator mode):
@@ -225,6 +229,27 @@ Replace "[YOUR WSL IP]" with your IP obtained from "hostname -I" on WSL.
     $: cd ~/AlvaAR-Ubuntu-20.04/examples/
     $: ./rebuild_and_run.sh
 ```
+
+## Usage with D435i RGBD Camera
+1. Instructions on setup and calibration here: [Calibration Guide](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/D345i%20Setup%20and%20Calibration)
+2. Run the following in it's own terminal to disable depth sensor and turn on infrared depth cameras (and set the resolution)
+```
+    $: ros2 launch realsense2_camera rs_launch.py enable_color:=false enable_depth:=false enable_infra1:=true enable_infra2:=true depth_module.infra_profile:=640x480x30 
+```
+3. Run the following in another terminal to disable depth emitter (it shoots out IR which causes dots to populate the frames)
+```
+    $: ros2 param set /camera/camera depth_module.emitter_enabled 0
+```
+4. In the main folder, run this script to push the RGBD frames online:
+```
+    $: python3 rgbd_ros2_ws_server.py
+```
+5. Then run:
+```
+    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
+    $: npm start
+```
+Note: If you are on WSL you need to push the ports through powershell again, example in the ESP32 Section.
 
 ## Usage
 
