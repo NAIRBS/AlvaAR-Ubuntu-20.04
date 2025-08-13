@@ -80,8 +80,8 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
 Ensure [Emscripten](https://emscripten.org/docs/getting_started/Tutorial.html) is installed and activated in your session. This is already shown above, but please check again if your path differs:
 
 ```
-    $: source [PATH]/emsdk/emsdk_env.sh 
-    $: emcc -v
+    source [PATH]/emsdk/emsdk_env.sh 
+    emcc -v
 ```
 #### C++11 or Higher
 Alva makes use of C++11 features and should thus be compiled with a C++11 or higher flag.
@@ -104,15 +104,15 @@ For convenience, a copy of all required libraries has been included in the libs/
 **NOTE THAT THIS SCRIPT CAN TAKE UP TO 90 MINUTES TO RUN ON THE JETSON! Do not falter even if it hangs near the 99% mark for ceres or the 100% mark for opencv.**
 
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/src/libs/
-    $: ./build.sH
+    cd ~/AlvaAR-Ubuntu-20.04/src/libs/
+    ./build.sH
 ```
 
 ## 2. AlvaAR / SLAM Libraries
 Then, run the following:
 
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/src/slam
+    cd ~/AlvaAR-Ubuntu-20.04/src/slam
     $: ./build.sh
 ```
 
@@ -134,20 +134,20 @@ To run the examples on another device in your local network, they must be served
 
 #### 1) Install server dependencies
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
-    $: npm install
+    cd ~/AlvaAR-Ubuntu-20.04/examples/
+    npm install
 ```
 #### 2) Generate a self-signed certificate
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/examples
-    $: mkdir ssl/
-    $: cd ssl/
-    $: openssl req -nodes -new -x509 -keyout key.pem -out cert.pem
+    cd ~/AlvaAR-Ubuntu-20.04/examples
+    mkdir ssl/
+    cd ssl/
+    openssl req -nodes -new -x509 -keyout key.pem -out cert.pem
 ```
 #### 3) Run
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
-    $: npm start
+    cd ~/AlvaAR-Ubuntu-20.04/examples/
+    npm start
 ``` 
 
 Where you should then see something similar to:
@@ -181,7 +181,7 @@ Use this ROS2 node to publish rectified Stereo ESP32 Camera Input: [stereo_camer
 2. Once you've flashed your ESP32s (pinhole cameras) and obtained calibration matrixes/data from step 1, you need to connect your ESP32s (with hardcoded SSID login) to the local wifi/hotspot, you also need to connect your machine to the same wifi/hotspot. You also need to format the calibration data into the yaml config file format. For the author's convenience, these 2 files that need to be modified has already been added to this folder (calibration file in config and stereo_pipeline.launch.py)
 3. Make sure to update the ip addresses assigned by your wifi/hotspot and the calibration file location in stereo_pipeline.launch.py, then run the following to start publishing video frames in ROS2 topics:
 ```
-    $: ros2 launch stereo_camera_pipeline stereo_pipeline.launch.py
+ros2 launch stereo_camera_pipeline stereo_pipeline.launch.py
 ```
 After you've started publishing the stereo rectified (and raw frames) from running the previous pipeline node, you should see the available topics named:
 ```
@@ -197,18 +197,18 @@ $: ros2 topic list
 ```
 4. Run this script to publish the data in the ROS2 topics, this is so that AlvaAR is able to grab the frames on the receiving end from the ESP32 Camera input:
 ```
-    $: python3 ros2_ws_server.py
+python3 ros2_ws_server.py
 ```
 5. Then run:
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
-    $: npm start
+    cd ~/AlvaAR-Ubuntu-20.04/examples/
+    npm start
 ```
 **To run with ESP32 Stereo Input: Open [https://YOUR_IP:8080/stereo.html](https://YOUR_IP:8080/both_esp32blob.html) in your browser.**
 
 Note that if you are running on WSL, the IP provided in the terminal will not work, run:
 ```
-    $: hostname -I
+    hostname -I
 ```
 And use that IP address instead, etc: 
 
@@ -226,28 +226,28 @@ Replace "[YOUR WSL IP]" with your IP obtained from "hostname -I" on WSL.
 
 6. To quickly rebuild slam library and host the website again:
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
-    $: ./rebuild_and_run.sh
+    cd ~/AlvaAR-Ubuntu-20.04/examples/
+    ./rebuild_and_run.sh
 ```
 
 ## Usage with D435i RGBD Camera
 1. Instructions on setup and calibration here: [Calibration Guide](https://github.com/NAIRBS/ORBSLAM3-Ubuntu-20.04/tree/main/D345i%20Setup%20and%20Calibration)
 2. Run the following in it's own terminal to disable depth sensor and turn on infrared depth cameras (and set the resolution)
 ```
-    $: ros2 launch realsense2_camera rs_launch.py enable_color:=false enable_depth:=false enable_infra1:=true enable_infra2:=true depth_module.infra_profile:=640x480x30 
+ros2 launch realsense2_camera rs_launch.py enable_color:=false enable_depth:=false enable_infra1:=true enable_infra2:=true depth_module.infra_profile:=640x480x30 
 ```
 3. Run the following in another terminal to disable depth emitter (it shoots out IR which causes dots to populate the frames)
 ```
-    $: ros2 param set /camera/camera depth_module.emitter_enabled 0
+ros2 param set /camera/camera depth_module.emitter_enabled 0
 ```
 4. In the main folder, run this script to push the RGBD frames online:
 ```
-    $: python3 rgbd_ros2_ws_server.py
+python3 rgbd_ros2_ws_server.py
 ```
 5. Then run:
 ```
-    $: cd ~/AlvaAR-Ubuntu-20.04/examples/
-    $: npm start
+    cd ~/AlvaAR-Ubuntu-20.04/examples/
+    npm start
 ```
 Note: If you are on WSL you need to push the ports through powershell again, example in the ESP32 Section.
 

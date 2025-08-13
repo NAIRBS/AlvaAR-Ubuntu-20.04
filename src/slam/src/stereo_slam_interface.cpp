@@ -73,7 +73,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     // Print image size at startup
     static bool printed_image_size = false;
     if (!printed_image_size) {
-        // std::cerr << "[StereoSLAM] Image size: " << width << "x" << height << std::endl;
+        std::cerr << "[StereoSLAM] Image size: " << width << "x" << height << std::endl;
         printed_image_size = true;
     }
 
@@ -101,7 +101,10 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     double grid_quality = 0.001; // Same as monocular extractorMaxQuality_
     int grid_num_cells_x = (width + grid_cell_size - 1) / grid_cell_size;
     int grid_num_cells_y = (height + grid_cell_size - 1) / grid_cell_size;
-    int max_total_kps = 96; // Same as monocular: 12×8 = 96 features
+    ////////////////////////////////////////////////////////////////////////
+    // int max_total_kps = 96; // Same as monocular: 12×8 = 96 features, this is for 480 x 360 resolution
+    int max_total_kps = 160; // Upscaled for 640 x 480 resolution 
+    ////////////////////////////////////////////////////////////////////////
     if (is_first_frame || prev_left_gray.empty()) {
         // First frame: detect and describe
         tracked_kps_left.clear();

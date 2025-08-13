@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
+  <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
+  <title>AlvaAR Stereo SLAM Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      font-family: 'Helvetica', sans-serif;
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #container {
+      position: relative;
+      overflow: hidden;
+      line-height: 0;
+      border: 2px solid #333;
+      box-shadow: 0 0 10px #000;
+    }
+
+    #container > * {
+      position: absolute;
+      display: block;
+      user-select: none;
+      top: 0;
+      left: 0;
+      animation: fadeIn 1.2s;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #splash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      opacity: 1;
+    }
+
+    #overlay {
+      position: absolute;
+      font-size: 16px;
+      z-index: 2;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    #overlay::before {
+      position: absolute;
+      width: 100%;
+      white-space: pre-wrap;
+      content: "Waiting for ROS2 camera stream \A (topics: /stereo/left/rectified_images/compressed) \A (topics: /stereo/right/rectified_images/compressed)";
+      top: calc(50% + 50px);
+      text-align: center;
+      color: #949494;
+    }
+
+    #overlay button {
+      background: transparent;
+      border: 1px solid white;
+      border-radius: 4px;
+      color: white;
+      padding: 12px 18px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    @keyframes fadeIn {
+      0% { opacity: 0; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    @media screen and (max-device-width: 480px) and (orientation: landscape) {
+      #container { display: none; }
+      body::before {
+        content: "Rotate device to portrait mode.";
+        color: white;
+      }
+    }
+
+    @media screen and (max-device-width: 480px) and (orientation: portrait) {
+      #container { display: block; }
+      body::before { content: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="container"></div>
+<div id="overlay">
+  <button id="start_button">Start</button>
+  <div id="splash"></div>
+</div>
+
+<script type="module">
+  import Module from './assets/alva_ar.js';
+  import { Stats } from './assets/stats.js';
+  import { ARCamView } from './assets/view.js';
+
+  // Resolution parameters (change here to dynamically adjust resolution)
+  const image_width = 480;
+  const image_height = 270;
+
+  // Set container and child sizes dynamically
+  const container = document.getElementById('container');
+  container.style.width = (image_width * 2) + 'px';
+  container.style.height = image_height + 'px';
+
+  // Adjust container children size via CSSOM after DOM ready
+  function setContainerChildrenSize() {
+    for (const child of container.children) {
+      child.style.width = (image_width * 2) + 'px';
+      child.style.height = image_height + 'px';
+      child.style.top = '0px';
+      child.style.left = '0px';
+    }
+  }
+
+  async function waitForEmscriptenModule(ModuleInstance) {
+    return new Promise(resolve => {
+      if (ModuleInstance && ModuleInstance.calledRun) {
+        resolve();
+      } else if (ModuleInstance && typeof ModuleInstance.onRuntimeInitialized === 'function') {
+        ModuleInstance.onRuntimeInitialized = resolve;
+      } else {
+        const check = setInterval(() => {
+          if (ModuleInstance && ModuleInstance.calledRun) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 50);
+      }
+    });
+  }
+
+  function createStereoAlvaAR(ModuleInstance) {
+    return {
+      findStereoCameraPose(leftFrame, rightFrame) {
+        if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+          console.error('Emscripten Module or findStereoCameraPose not loaded');
+          return null;
+        }
+        const malloc = ModuleInstance.cwrap('malloc', 'number', ['number']);
+        const free = ModuleInstance.cwrap('free', null, ['number']);
+        const leftPtr = malloc(leftFrame.data.length);
+        const rightPtr = malloc(rightFrame.data.length);
+        ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
+        ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
+        const posePtr = malloc(7 * 4);
+        const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
+        let pose = null;
+        if (ok) {
+          pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
+        }
+        free(leftPtr);
+        free(rightPtr);
+        free(posePtr);
+        return pose;
+      },
+      reset() {
+        if (typeof ModuleInstance.reset === 'function') {
+          ModuleInstance.reset();
+        }
+      },
+      getFramePoints() {
+        if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+          // Allocate buffer for up to 2048 points (4096 ints)
+          const n = 4096;
+          const buf = ModuleInstance._malloc(n * 4 * 2); // 2 ints per point
+          const numPoints = ModuleInstance.getStereoFramePoints(buf);
+          const result = [];
+          const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
+          for (let i = 0; i < numPoints; ++i) {
+            result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+          }
+          ModuleInstance._free(buf);
+          return result;
+        }
+        return [];
+      }
+    };
+  }
+
+  function connectWebSocketFrameStream(callback) {
+    const ws = new WebSocket("ws://localhost:8765");
+    ws.binaryType = "arraybuffer";
+    ws.onopen = () => {
+      console.log("✅ Connected to WebSocket video stream");
+    };
+    ws.onerror = err => {
+      console.error("❌ WebSocket error:", err);
+    };
+    ws.onclose = () => {
+      console.warn("⚠️ WebSocket connection closed");
+    };
+    ws.onmessage = async event => {
+      try {
+        const arrayBuffer = event.data;
+        const view = new Uint8Array(arrayBuffer);
+        const sourceTag = String.fromCharCode(view[0]); // 'L' or 'R'
+        const jpegData = view.slice(1);
+        const blob = new Blob([jpegData], { type: 'image/jpeg' });
+        const bitmap = await createImageBitmap(blob);
+        callback(sourceTag, bitmap);
+      } catch (err) {
+        console.error("❌ Failed to decode image blob:", err);
+      }
+    };
+    return {
+      close() {
+        if (ws) ws.close();
+      }
+    };
+  }
+
+  async function main() {
+    setContainerChildrenSize();
+
+    const $container = document.getElementById('container');
+    const $view = document.createElement('div');
+    const $canvas = document.createElement('canvas');
+    const $overlay = document.getElementById('overlay');
+    const $start = document.getElementById('start_button');
+    const $splash = document.getElementById('splash');
+    const splashFadeTime = 800;
+
+    let alva, view, stats;
+    let latestFrameBitmapLeft = null;
+    let latestFrameBitmapRight = null;
+
+    async function demoStream() {
+      const ModuleInstance = await Module();
+      await waitForEmscriptenModule(ModuleInstance);
+      // Fetch the YAML file and set it in the WASM module
+      const yamlResponse = await fetch('./assets/d345i_480x270.yaml');
+      const yamlText = await yamlResponse.text();
+      if (typeof ModuleInstance.setStereoCalibrationYAML === 'function') {
+        ModuleInstance.setStereoCalibrationYAML(yamlText);
+      } else {
+        console.error('setStereoCalibrationYAML is not available on the Module instance.');
+      }
+      // Persistent buffer allocation
+      const leftFrameSize = image_width * image_height * 4;
+      const framepointsBufSize = 4096 * 4;
+      const leftPtr = ModuleInstance._malloc(leftFrameSize);
+      const rightPtr = ModuleInstance._malloc(leftFrameSize);
+      const framepointsBuf = ModuleInstance._malloc(framepointsBufSize);
+      window.addEventListener('unload', () => {
+        ModuleInstance._free(leftPtr);
+        ModuleInstance._free(rightPtr);
+        ModuleInstance._free(framepointsBuf);
+      });
+      alva = {
+        findStereoCameraPose(leftFrame, rightFrame) {
+          if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+            console.error('Emscripten Module or findStereoCameraPose not loaded');
+            return null;
+          }
+          ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
+          ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
+          const posePtr = ModuleInstance._malloc(7 * 4);
+          const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
+          let pose = null;
+          if (ok) {
+            pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
+          }
+          ModuleInstance._free(posePtr);
+          return pose;
+        },
+        reset() {
+          if (typeof ModuleInstance.reset === 'function') {
+            ModuleInstance.reset();
+          }
+        },
+        getFramePoints() {
+          if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+            const n = 4096;
+            const buf = ModuleInstance._malloc(n * 4 * 2); // 2 ints per point
+            const numPoints = ModuleInstance.getStereoFramePoints(buf);
+            const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
+            const result = [];
+            for (let i = 0; i < numPoints; ++i) {
+              result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+            }
+            ModuleInstance._free(buf);
+            return result;
+          }
+          return [];
+        }
+      };
+      // Restrict $view overlay to left image only
+      $view.style.position = 'absolute';
+      $view.style.left = '0px';
+      $view.style.top = '0px';
+      $view.style.width = image_width + 'px';
+      $view.style.height = image_height + 'px';
+      $view.style.zIndex = '10';
+      view = new ARCamView($view, image_width, image_height, 0, 0, -8);
+
+      stats = Stats;
+      stats.add('total');
+      stats.add('video');
+      stats.add('slam');
+
+      $container.appendChild($canvas);
+      $container.appendChild($view);
+      document.body.appendChild(stats.el);
+
+      document.body.addEventListener("click", () => alva.reset(), false);
+
+      connectWebSocketFrameStream((source, bitmap) => {
+        if (source === 'L') latestFrameBitmapLeft = bitmap;
+        else if (source === 'R') latestFrameBitmapRight = bitmap;
+      });
+
+      function render() {
+        stats.next();
+        stats.start('total');
+
+        const spacing = 0;
+        const boxWidth = image_width;
+        const boxHeight = image_height;
+        const width = image_width * 2 + spacing;
+        const height = image_height;
+        $canvas.width = width;
+        $canvas.height = height;
+        const ctx = $canvas.getContext('2d');
+        ctx.clearRect(0, 0, $canvas.width, $canvas.height);
+
+        if (!document.hidden) {
+          if (latestFrameBitmapLeft && latestFrameBitmapRight) {
+            ctx.drawImage(latestFrameBitmapLeft, 0, 0, image_width, image_height);
+            ctx.drawImage(latestFrameBitmapRight, image_width, 0, image_width, image_height);
+            stats.start('video');
+            const leftFrame = ctx.getImageData(0, 0, image_width, image_height);
+            const rightFrame = ctx.getImageData(image_width, 0, image_width, image_height);
+            stats.stop('video');
+            stats.start('slam');
+            const pose = alva.findStereoCameraPose(leftFrame, rightFrame);
+            stats.stop('slam');
+            if (pose) {
+              view.updateCameraPose(pose);
+            } else {
+              view.lostCamera();
+              const dots = alva.getFramePoints();
+              for (const p of dots) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(p.x, p.y, 2, 2);
+              }
+            }
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(0, 0, image_width * 0.36, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Left Camera (Stereo)", 10, 18);
+          } else if (latestFrameBitmapLeft) {
+            ctx.drawImage(latestFrameBitmapLeft, 0, 0, image_width, image_height);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(0, 0, 110, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Left Camera", 10, 18);
+          }
+          if (latestFrameBitmapRight) {
+            ctx.drawImage(latestFrameBitmapRight, image_width, 0, image_width, image_height);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(image_width, 0, 120, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Right Camera", image_width + 10, 18);
+          }
+          ctx.beginPath();
+          ctx.moveTo(image_width, 0);
+          ctx.lineTo(image_width, image_height);
+          ctx.strokeStyle = "#333";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        stats.stop('total');
+        stats.render();
+        requestAnimationFrame(render);
+      }
+      render();
+    }
+
+    setTimeout(() => {
+      $splash.remove();
+      $start.addEventListener('click', () => {
+        $overlay.remove();
+        demoStream();
+      }, { once: true });
+    }, splashFadeTime);
+  }
+
+  window.addEventListener('load', main);
+</script>
+</body>
+</html>

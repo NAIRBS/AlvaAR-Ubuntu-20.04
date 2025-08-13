@@ -256,7 +256,7 @@
       const ModuleInstance = await Module();
       await waitForEmscriptenModule(ModuleInstance);
       // Fetch the YAML file and set it in the WASM module
-      const yamlResponse = await fetch('./assets/d345i_640_480.yaml');
+      const yamlResponse = await fetch('./assets/d345i_640x480.yaml');
       const yamlText = await yamlResponse.text();
       if (typeof ModuleInstance.setStereoCalibrationYAML === 'function') {
         ModuleInstance.setStereoCalibrationYAML(yamlText);
