@@ -117,8 +117,8 @@ else ()
       -s EXPORT_ES6=1 \
       -s EXPORT_ALL=1 \
       -s SINGLE_FILE=1 \
-      -s ASSERTIONS=0 \
-      -s DYLINK_DEBUG=0 \
+      -s ASSERTIONS=1 \
+      -s DYLINK_DEBUG=1 \
       -s EXPORTED_FUNCTIONS=['_malloc','_free'] \
       -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
       -s DISABLE_EXCEPTION_CATCHING=0 \

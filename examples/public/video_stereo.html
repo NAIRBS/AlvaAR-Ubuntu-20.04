@@ -145,6 +145,90 @@
     });
   }
 
+    function toGrayUint8(imageData) {
+    const rgba = imageData.data;
+    const w = imageData.width;
+    const h = imageData.height;
+    const gray = new Uint8Array(w * h);
+
+    for (let i = 0; i < w * h; ++i) {
+      const r = rgba[i * 4];
+      const g = rgba[i * 4 + 1];
+      const b = rgba[i * 4 + 2];
+      gray[i] = (0.299*r + 0.587*g + 0.114*b) | 0;
+    }
+    return gray;
+  }
+
+  // // --- grayscale helper that returns ImageData ---
+  // function toGrayscaleImageData(imageData) {
+  //   const rgba = imageData.data;
+  //   const w = imageData.width;
+  //   const h = imageData.height;
+
+  //   // clone so we don't mutate the original directly
+  //   const grayImage = new ImageData(w, h);
+  //   const out = grayImage.data;
+
+  //   for (let i = 0; i < rgba.length; i += 4) {
+  //     const gray = (rgba[i] * 0.299 + rgba[i + 1] * 0.587 + rgba[i + 2] * 0.114) | 0;
+  //     out[i]     = gray; // R
+  //     out[i + 1] = gray; // G
+  //     out[i + 2] = gray; // B
+  //     out[i + 3] = 255;  // Alpha
+  //   }
+
+  //   return grayImage;
+  // }
+
+  // function createStereoAlvaAR(ModuleInstance) {
+  //   return {
+  //     findStereoCameraPose(leftFrame, rightFrame) {
+  //       if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+  //         console.error('Emscripten Module or findStereoCameraPose not loaded');
+  //         return null;
+  //       }
+  //       const malloc = ModuleInstance.cwrap('malloc', 'number', ['number']);
+  //       const free = ModuleInstance.cwrap('free', null, ['number']);
+  //       const leftPtr = malloc(leftFrame.data.length);
+  //       const rightPtr = malloc(rightFrame.data.length);
+  //       ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
+  //       ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
+  //       const posePtr = malloc(7 * 4);
+  //       const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
+  //       let pose = null;
+  //       if (ok) {
+  //         pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
+  //       }
+  //       free(leftPtr);
+  //       free(rightPtr);
+  //       free(posePtr);
+  //       return pose;
+  //     },
+  //     reset() {
+  //       if (typeof ModuleInstance.reset === 'function') {
+  //         ModuleInstance.reset();
+  //       }
+  //     },
+  //     getFramePoints() {
+  //       if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+  //         // Allocate buffer for up to 2048 points (4096 ints)
+  //         const n = 4096;
+  //         const buf = ModuleInstance._malloc(n * 4); // 4 bytes per int
+  //         const numPoints = ModuleInstance.getStereoFramePoints(buf);
+  //         const result = [];
+  //         const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
+  //         for (let i = 0; i < numPoints; ++i) {
+  //           result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+  //         }
+  //         ModuleInstance._free(buf);
+  //         return result;
+  //       }
+  //       return [];
+  //     }
+  //   };
+  // }
+
   async function main() {
     const $container = document.getElementById('container');
     const $view = document.createElement('div');
@@ -166,6 +250,8 @@
       const yamlText = await yamlResponse.text();
       if (typeof ModuleInstance.setStereoCalibrationYAML === 'function') {
         ModuleInstance.setStereoCalibrationYAML(yamlText);
+      } else {
+        console.error('setStereoCalibrationYAML is not available on the Module instance.');
       }
 
       const leftPtr = ModuleInstance._malloc(480 * 320 * 4);
@@ -177,11 +263,15 @@
 
       alva = {
         findStereoCameraPose(leftFrame, rightFrame) {
+          if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+            console.error('Emscripten Module or findStereoCameraPose not loaded');
+            return null;
+          }
           ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
           ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
           const posePtr = ModuleInstance._malloc(7 * 4);
           const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
-          let pose = null;
+          let pose = null;  
           if (ok) {
             pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
           }
@@ -225,6 +315,7 @@
       $view.style.width = '480px';
       $view.style.height = '320px';
       $view.style.zIndex = '10';
+
       view = new ARCamView($view, 480, 320, 0, 0, -8);
 
       stats = Stats;
@@ -238,6 +329,17 @@
 
       document.body.addEventListener("click", () => alva.reset(), false);
 
+      // Initialize videos (can be same or different)
+      mediaLeft = await Video.Initialize('./assets/left_web.mp4');
+      mediaRight = await Video.Initialize('./assets/right_web.mp4');
+
+      mediaLeft.el.play();
+      mediaLeft.el.loop = true;
+      mediaRight.el.play();
+      mediaRight.el.loop = true;
+
+      let firstFrame = true;
+
       function render() {
         stats.next();
         stats.start('total');
@@ -248,18 +350,54 @@
         $canvas.width = width;
         $canvas.height = height;
         const ctx = $canvas.getContext('2d');
-        ctx.clearRect(0, 0, width, height);
+        // ctx.clearRect(0, 0, width, height);
+        ctx.clearRect(0, 0, $canvas.width, $canvas.height);
+
+        let frameLeft = null;
+        let frameRight = null;
+        let pose = null;
 
         if (!document.hidden) {
+          frameLeft = mediaLeft.getImageData();
+          frameRight = mediaRight.getImageData();
+
+         if (!frameLeft || !frameRight || !frameLeft.data.length || !frameRight.data.length) {
+              requestAnimationFrame(render);
+              return;
+          }
+
+          if (frameLeft && frameRight) {
           stats.start('video');
-          const frameLeft = mediaLeft.getImageData();
-          const frameRight = mediaRight.getImageData();
+          
+
           ctx.putImageData(frameLeft, 0, 0);
           ctx.putImageData(frameRight, 480 + spacing, 0);
+
+          // const leftFrameData  = ctx.getImageData(0, 0, 480, 320);
+          // const rightFrameData = ctx.getImageData(480, 0, 480, 320);
+          // const leftGray = toGrayUint8(frameLeft);
+          // const rightGray = toGrayUint8(frameRight);
+          
           stats.stop('video');
 
           stats.start('slam');
-          const pose = alva.findStereoCameraPose(frameLeft, frameRight);
+
+          
+          if (frameLeft && frameRight && frameLeft.data.length && frameRight.data.length) {
+              if (firstFrame) {
+                  alva.reset();  // Reset LK tracker on first valid frame
+                  firstFrame = false;
+              }
+              const leftGray=toGrayUint8(frameLeft);
+              const rightGray=toGrayUint8(frameRight);
+              //pose = alva.findStereoCameraPose(frameLeft, frameRight);
+              const pose = alva.findStereoCameraPose({data:leftGray,width:480,height:320},{data:rightGray,width:480,height:320});
+              //const pose = alva.findStereoCameraPose({data:frameLeft,width:480,height:320},{data:frameRight,width:480,height:320});
+          }
+          else {
+            requestAnimationFrame(render);
+            return;
+          }
           stats.stop('slam');
 
           if (pose) {
@@ -284,7 +422,22 @@
           ctx.fillRect(480, 0, 120, 25);
           ctx.fillStyle = "white";
           ctx.fillText("Right Camera", 490, 18);
-
+        } else if (frameLeft) {
+            ctx.putImageData(frameLeft, 0, 0);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(0, 0, 110, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Left Camera (Stereo)", 10, 18);
+          }
+          if (frameRight) {
+            ctx.putImageData(frameRight, 480 + spacing, 0);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(480, 0, 120, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Right Camera", 490, 18);
+          }
           ctx.beginPath();
           ctx.moveTo(480, 0);
           ctx.lineTo(480, 320);
