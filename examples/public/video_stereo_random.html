@@ -33,32 +33,6 @@ import { Stats } from './assets/stats.js';
 import { ARCamView } from './assets/view.js';
 import { Video } from './assets/utils.js';
 
-// Convert RGBA ImageData to RGB Uint8Array (3 channels per pixel)
-function rgbaToRGBUint8(imageData) {
-    const rgba = imageData.data;
-    const rgb = new Uint8Array((rgba.length / 4) * 3);
-    for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
-        rgb[j]     = rgba[i];
-        rgb[j + 1] = rgba[i + 1];
-        rgb[j + 2] = rgba[i + 2];
-    }
-    return rgb;
-}
-
-// Convert RGBA ImageData to RGBA Uint8Array (4 channels per pixel)
-function rgbaToRGBAUint8(imageData) {
-    const rgba = imageData.data;
-    const out = new Uint8Array(rgba.length); // same length (width*height*4)
-
-    for (let i = 0; i < rgba.length; i += 4) {
-        out[i]     = rgba[i];     // R
-        out[i + 1] = rgba[i + 1]; // G
-        out[i + 2] = rgba[i + 2]; // B
-        out[i + 3] = 255; // A (already present)
-    }
-    return out;
-}
-
 // Optional: compute average brightness (for debugging)
 function averageBrightness(frame) {
     const data = frame.data;
@@ -126,8 +100,8 @@ async function main() {
             }
         };
 
-        mediaLeft = await Video.Initialize('./assets/right_web.mp4');
-        mediaRight = await Video.Initialize('./assets/right_web.mp4');
+        mediaLeft = await Video.Initialize('./assets/left_web1.mp4');
+        mediaRight = await Video.Initialize('./assets/right_web1.mp4');
         mediaLeft.el.play(); mediaLeft.el.loop=true;
         mediaRight.el.play(); mediaRight.el.loop=true;
 
@@ -163,8 +137,7 @@ async function main() {
                 const leftFrame = ctx.getImageData(0, 0, 480, 320);
                 const rightFrame = ctx.getImageData(480, 0, 480, 320);
 
-                console.log("First 16 values:", Array.from(leftFrame.data.slice(1000, 1016)));
-
+                //console.log("First 16 values:", Array.from(leftFrame.data.slice(1000, 1016)));
 
                 stats.stop('video');
 
@@ -174,17 +147,10 @@ async function main() {
                 stats.start('slam');
                 //if(firstFrame){ alva.reset(); firstFrame=false; }
 
-                // Pass RGB data
-                const leftRGB = { data: rgbaToRGBAUint8(frameLeft), width:480, height:320 };
-                const rightRGB = { data: rgbaToRGBAUint8(frameRight), width:480, height:320 };
-
-                //const pose = null; // uncomment to enable hexagon loading, reenable by uncommenting the next line
                 const pose = alva.findStereoCameraPose(leftFrame,rightFrame);
 
-                // const leftRGBA = { data: frameLeft.data, width: 480, height: 320 };
-                // const rightRGBA = { data: frameRight.data, width: 480, height: 320 };
+                console.log('Pose:',pose);
 
-                // const pose = alva.findStereoCameraPose(leftRGBA,rightRGBA);
                 stats.stop('slam');
 
                 if(pose){
