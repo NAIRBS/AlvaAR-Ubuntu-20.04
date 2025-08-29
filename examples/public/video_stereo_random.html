@@ -134,8 +134,8 @@ async function main() {
                 ctx.putImageData(frameLeft,0,0);
                 ctx.putImageData(frameRight,480,0);
 
-                const leftFrame = ctx.getImageData(0, 0, 480, 320);
-                const rightFrame = ctx.getImageData(480, 0, 480, 320);
+                // const leftFrame = ctx.getImageData(0, 0, 480, 320);
+                // const rightFrame = ctx.getImageData(480, 0, 480, 320);
 
                 //console.log("First 16 values:", Array.from(leftFrame.data.slice(1000, 1016)));
 
@@ -147,9 +147,9 @@ async function main() {
                 stats.start('slam');
                 //if(firstFrame){ alva.reset(); firstFrame=false; }
 
-                const pose = alva.findStereoCameraPose(leftFrame,rightFrame);
+                const pose = alva.findStereoCameraPose(frameLeft,frameRight);
 
-                console.log('Pose:',pose);
+                //console.log('Pose:',pose);
 
                 stats.stop('slam');
 

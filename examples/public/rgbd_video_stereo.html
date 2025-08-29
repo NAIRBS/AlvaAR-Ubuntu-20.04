@@ -25,8 +25,8 @@
 
     #container {
       position: relative;
-      width: 960px;
-      height: 320px;
+      width: 1280px;
+      height: 480px;
       overflow: hidden;
       line-height: 0;
       border: 2px solid #333;
@@ -39,15 +39,15 @@
       user-select: none;
       top: 0;
       left: 0;
-      width: 960px;
-      height: 320px;
+      width: 1280px;
+      height: 480px;
       animation: fadeIn 1.2s;
     }
 
     canvas {
       display: block;
-      width: 960px;
-      height: 320px;
+      width: 1280px;
+      height: 480px;
     }
 
     #splash {
@@ -145,6 +145,38 @@
     });
   }
 
+  // function invertPose(pose) {
+  //     const arr = Array.from(pose);
+  //     const [tx, ty, tz, qx, qy, qz, qw] = arr;
+
+  //     // Inverse quaternion = conjugate / (norm²)
+  //     const norm2 = qx*qx + qy*qy + qz*qz + qw*qw;
+  //     const qInv = [-qx/norm2, -qy/norm2, -qz/norm2, qw/norm2];
+
+  //     // Apply inverse rotation to translation
+  //     const tInv = rotateVecByQuat([-tx, -ty, -tz], qInv);
+
+  //     return [tInv[0], tInv[1], tInv[2], qInv[0], qInv[1], qInv[2], qInv[3]];
+  //   }
+
+  //   // Rotate a vector by a quaternion
+  //   function rotateVecByQuat(v, q) {
+  //     const [x, y, z] = v;
+  //     const [qx, qy, qz, qw] = q;
+
+  //     // quaternion * vector * quaternion^-1
+  //     const ix =  qw * x + qy * z - qz * y;
+  //     const iy =  qw * y + qz * x - qx * z;
+  //     const iz =  qw * z + qx * y - qy * x;
+  //     const iw = -qx * x - qy * y - qz * z;
+
+  //     return [
+  //       ix * qw + iw * -qx + iy * -qz - iz * -qy,
+  //       iy * qw + iw * -qy + iz * -qx - ix * -qz,
+  //       iz * qw + iw * -qz + ix * -qy - iy * -qx
+  //     ];
+  //   }
+
     function toGrayUint8(imageData) {
     const rgba = imageData.data;
     const w = imageData.width;
@@ -177,7 +209,7 @@
       await waitForEmscriptenModule(ModuleInstance);
 
       // Fetch stereo calibration
-      const yamlResponse = await fetch('./assets/stereo_camera.yaml');
+      const yamlResponse = await fetch('./assets/d345i_640x480.yaml');
       const yamlText = await yamlResponse.text();
       if (typeof ModuleInstance.setStereoCalibrationYAML === 'function') {
         ModuleInstance.setStereoCalibrationYAML(yamlText);
@@ -185,8 +217,8 @@
         console.error('setStereoCalibrationYAML is not available on the Module instance.');
       }
 
-      const leftPtr = ModuleInstance._malloc(480 * 320 * 4);
-      const rightPtr = ModuleInstance._malloc(480 * 320 * 4);
+      const leftPtr = ModuleInstance._malloc(640 * 480 * 4);
+      const rightPtr = ModuleInstance._malloc(640 * 480 * 4);
       window.addEventListener('unload', () => {
         ModuleInstance._free(leftPtr);
         ModuleInstance._free(rightPtr);
@@ -232,8 +264,8 @@
       };
 
       // Load videos instead of WebSocket stream
-      mediaLeft = await Video.Initialize('./assets/left_web1.mp4');
-      mediaRight = await Video.Initialize('./assets/right_web1.mp4');
+      mediaLeft = await Video.Initialize('./assets/rgbd_left_web.mp4');
+      mediaRight = await Video.Initialize('./assets/rgbd_right_web.mp4');
       mediaLeft.el.play();
       mediaLeft.el.loop = true;
       mediaRight.el.play();
@@ -243,11 +275,11 @@
       $view.style.position = 'absolute';
       $view.style.left = '0px';
       $view.style.top = '0px';
-      $view.style.width = '480px';
-      $view.style.height = '320px';
+      $view.style.width = '640px';
+      $view.style.height = '480';
       $view.style.zIndex = '10';
 
-      view = new ARCamView($view, 480, 320, 0, 0, -8);
+      view = new ARCamView($view, 640, 480);
 
       stats = Stats;
       stats.add('total');
@@ -267,8 +299,8 @@
         stats.start('total');
 
         const spacing = 0;
-        const width = 480 * 2 + spacing;
-        const height = 320;
+        const width = 640 * 2 + spacing;
+        const height = 480;
         $canvas.width = width;
         $canvas.height = height;
         const ctx = $canvas.getContext('2d');
@@ -292,7 +324,7 @@
           stats.start('video');
         
           ctx.putImageData(frameLeft, 0, 0);
-          ctx.putImageData(frameRight, 480 + spacing, 0);
+          ctx.putImageData(frameRight, 640 + spacing, 0);
           
           stats.stop('video');
 
@@ -312,6 +344,11 @@
 
           if (pose) {
             view.updateCameraPose(pose);
+            const dots = alva.getFramePoints();
+            for (const p of dots) {
+              ctx.fillStyle = 'white';
+              ctx.fillRect(p.x, p.y, 4, 4);
+            }
           } else {
             view.lostCamera();
             const dots = alva.getFramePoints();
@@ -329,9 +366,9 @@
           ctx.fillText("Left Camera (Stereo)", 10, 18);
 
           ctx.fillStyle = "rgba(0,0,0,0.6)";
-          ctx.fillRect(480, 0, 120, 25);
+          ctx.fillRect(640, 0, 120, 25);
           ctx.fillStyle = "white";
-          ctx.fillText("Right Camera", 490, 18);
+          ctx.fillText("Right Camera", 650, 18);
         } else if (frameLeft) {
             ctx.putImageData(frameLeft, 0, 0);
             ctx.fillStyle = "rgba(0,0,0,0.6)";
@@ -341,16 +378,16 @@
             ctx.fillText("Left Camera (Stereo)", 10, 18);
           }
           if (frameRight) {
-            ctx.putImageData(frameRight, 480 + spacing, 0);
+            ctx.putImageData(frameRight, 650 + spacing, 0);
             ctx.fillStyle = "rgba(0,0,0,0.6)";
-            ctx.fillRect(480, 0, 120, 25);
+            ctx.fillRect(640, 0, 120, 25);
             ctx.fillStyle = "white";
             ctx.font = "16px Helvetica";
-            ctx.fillText("Right Camera", 490, 18);
+            ctx.fillText("Right Camera", 650, 18);
           }
           ctx.beginPath();
-          ctx.moveTo(480, 0);
-          ctx.lineTo(480, 320);
+          ctx.moveTo(640, 0);
+          ctx.lineTo(640, 480);
           ctx.strokeStyle = "#333";
           ctx.lineWidth = 2;
           ctx.stroke();

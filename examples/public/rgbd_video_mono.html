@@ -6,103 +6,17 @@
   <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
   <title>AlvaAR Mono Viewer (Video Source)</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html, body {
-      font-family: 'Helvetica', sans-serif;
-      overflow: hidden;
-      background: #000;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    #container {
-      position: relative;
-      width: 960px;
-      height: 320px;
-      overflow: hidden;
-      line-height: 0;
-      border: 2px solid #333;
-      box-shadow: 0 0 10px #000;
-    }
-
-    #container > * {
-      position: absolute;
-      display: block;
-      user-select: none;
-      top: 0;
-      left: 0;
-      width: 960px;
-      height: 320px;
-      animation: fadeIn 1.2s;
-    }
-
-    canvas {
-      display: block;
-      width: 960px;
-      height: 320px;
-    }
-
-    #splash {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #000;
-      opacity: 1;
-    }
-
-    #overlay {
-      position: absolute;
-      font-size: 16px;
-      z-index: 2;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      background: rgba(0, 0, 0, 0.5);
-    }
-
-    #overlay button {
-      background: transparent;
-      border: 1px solid white;
-      border-radius: 4px;
-      color: white;
-      padding: 12px 18px;
-      text-transform: uppercase;
-      cursor: pointer;
-    }
-
-    @keyframes fadeIn {
-      0% { opacity: 0; }
-      50% { opacity: 0.6; }
-      100% { opacity: 1; }
-    }
-
-    @media screen and (max-device-width: 480px) and (orientation: landscape) {
-      #container { display: none; }
-      body::before {
-        content: "Rotate device to portrait mode.";
-        color: white;
-      }
-    }
-
-    @media screen and (max-device-width: 480px) and (orientation: portrait) {
-      #container { display: block; }
-      body::before { content: none; }
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { font-family: 'Helvetica', sans-serif; overflow: hidden; background: #000; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+    #container { position: relative; width: 1280px; height: 480px; overflow: hidden; line-height: 0; border: 2px solid #333; box-shadow: 0 0 10px #000; }
+    #container > * { position: absolute; display: block; user-select: none; top: 0; left: 0; width: 1280px; height: 480px; animation: fadeIn 1.2s; }
+    canvas { display: block; width: 1280px; height: 480px; }
+    #splash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; opacity: 1; }
+    #overlay { position: absolute; font-size: 16px; z-index: 2; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; background: rgba(0, 0, 0, 0.5); }
+    #overlay button { background: transparent; border: 1px solid white; border-radius: 4px; color: white; padding: 12px 18px; text-transform: uppercase; cursor: pointer; }
+    @keyframes fadeIn { 0% { opacity: 0; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    @media screen and (max-device-width: 480px) and (orientation: landscape) { #container { display: none; } body::before { content: "Rotate device to portrait mode."; color: white; } }
+    @media screen and (max-device-width: 480px) and (orientation: portrait) { #container { display: block; } body::before { content: none; } }
   </style>
 </head>
 <body>
@@ -127,22 +41,19 @@
     const $splash = document.getElementById('splash');
     const splashFadeTime = 800;
 
+    const videoWidth = 640;
+    const videoHeight = 480;
     let alva, view, stats;
     let mediaLeft, mediaRight;
 
     async function demoStream() {
       const spacing = 0;
-      const boxWidth = 480;
-      const boxHeight = 320;
-      const width = 480 * 2 + spacing;
-      const height = 320;
-
-      $canvas.width = width;
-      $canvas.height = height;
+      $canvas.width = videoWidth * 2 + spacing;
+      $canvas.height = videoHeight;
 
       const ctx = $canvas.getContext('2d');
-      alva = await AlvaAR.Initialize(480, 320); // SLAM on left feed only
-      view = new ARCamView($view, 480, 320);
+      alva = await AlvaAR.Initialize(videoWidth, videoHeight); // SLAM on left feed
+      view = new ARCamView($view, videoWidth, videoHeight);
 
       stats = Stats;
       stats.add('total');
@@ -155,9 +66,8 @@
 
       document.body.addEventListener("click", () => alva.reset(), false);
 
-      // Initialize videos (can be same or different)
-      mediaLeft = await Video.Initialize('./assets/left_web1.mp4');
-      mediaRight = await Video.Initialize('./assets/right_web.mp4');
+      mediaLeft = await Video.Initialize('./assets/rgbd_left_web.mp4', videoWidth, videoHeight);
+      mediaRight = await Video.Initialize('./assets/rgbd_right_web.mp4', videoWidth, videoHeight);
 
       mediaLeft.el.play();
       mediaLeft.el.loop = true;
@@ -179,11 +89,15 @@
 
           stats.start('slam');
           const pose = alva.findCameraPose(frameLeft);
+           const dots = alva.getFramePoints();
+            for (const p of dots) {
+              ctx.fillStyle = 'white';
+              ctx.fillRect(p.x, p.y, 4, 4);
+            }
           stats.stop('slam');
 
-          if (pose) {
-            view.updateCameraPose(pose);
-          } else {
+          if (pose) view.updateCameraPose(pose);
+          else {
             view.lostCamera();
             const dots = alva.getFramePoints();
             for (const p of dots) {
@@ -192,7 +106,7 @@
             }
           }
 
-          // Label
+          // LEFT label
           ctx.fillStyle = "rgba(0,0,0,0.6)";
           ctx.fillRect(0, 0, 110, 25);
           ctx.fillStyle = "white";
@@ -201,14 +115,14 @@
 
           // RIGHT VIDEO
           const frameRight = mediaRight.getImageData();
-          ctx.putImageData(frameRight, 480 + spacing, 0);
+          ctx.putImageData(frameRight, videoWidth + spacing, 0);
 
-          // Label
+          // RIGHT label
           ctx.fillStyle = "rgba(0,0,0,0.6)";
-          ctx.fillRect(480, 0, 120 + spacing, 25);
+          ctx.fillRect(videoWidth, 0, 120 + spacing, 25);
           ctx.fillStyle = "white";
           ctx.font = "16px Helvetica";
-          ctx.fillText("Right Camera", 490 + spacing, 18);
+          ctx.fillText("Right Camera", videoWidth + 10 + spacing, 18);
         }
 
         stats.stop('total');

@@ -364,6 +364,11 @@
             stats.stop('slam');
             if (pose) {
               view.updateCameraPose(pose);
+              const dots = alva.getFramePoints();
+              for (const p of dots) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(p.x, p.y, 2, 2);
+              }
             } else {
               view.lostCamera();
               const dots = alva.getFramePoints();

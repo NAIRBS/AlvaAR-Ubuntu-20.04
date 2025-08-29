@@ -602,11 +602,13 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         }
     }
     // --- Output pose (always update AR object) ---
-    Eigen::Vector3d t = current_pose.translation();
-    Eigen::Quaterniond q(current_pose.unit_quaternion());
+    // Convert Twc (camera in world) to Tcw (world in camera) for AR visualization
+    Sophus::SE3d Tcw = current_pose.inverse();
+    Eigen::Vector3d t = Tcw.translation();
+    Eigen::Quaterniond q(Tcw.unit_quaternion());
     float* out = reinterpret_cast<float*>(posePtr);
     
-    // Output raw translation (like monocular SLAM) - no additional scaling
+    // Output Tcw pose for AR visualization (world in camera coordinates)
     out[0] = static_cast<float>(t.x());
     out[1] = static_cast<float>(t.y());
     out[2] = static_cast<float>(t.z());

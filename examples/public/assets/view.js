@@ -52,6 +52,7 @@ class ARCamView
     }
 }
 
+
 class ARCamIMUView
 {
     constructor( container, width, height )
