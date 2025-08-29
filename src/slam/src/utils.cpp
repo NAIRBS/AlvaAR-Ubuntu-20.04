@@ -2,9 +2,12 @@
 
 void Utils::toPoseArray(Sophus::SE3d Twc, float *pose)
 {
+    std::cerr << "[Utils] DEBUG: toPoseArray called with pose pointer: " << pose << std::endl;
+    
     Eigen::Matrix3d R = Twc.rotationMatrix();
     Eigen::Vector3d t = Twc.translation();
 
+    std::cerr << "[Utils] DEBUG: Writing rotation matrix elements" << std::endl;
     pose[0] = R(0, 0);
     pose[1] = R(0, 1);
     pose[2] = R(0, 2);
@@ -20,10 +23,13 @@ void Utils::toPoseArray(Sophus::SE3d Twc, float *pose)
     pose[10] = R(2, 2);
     pose[11] = 0.0;
 
+    std::cerr << "[Utils] DEBUG: Writing translation elements" << std::endl;
     pose[12] = t.x();
     pose[13] = t.y();
     pose[14] = t.z();
     pose[15] = 1.0;
+    
+    std::cerr << "[Utils] DEBUG: toPoseArray completed successfully" << std::endl;
 }
 
 void Utils::toPoseArray(cv::Mat mat, float *pose)

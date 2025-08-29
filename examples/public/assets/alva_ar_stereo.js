@@ -21,12 +21,12 @@ const StereoAlvaAR = {
     const rightPtr = Module._malloc(rightFrame.data.length);
     Module.HEAPU8.set(leftFrame.data, leftPtr);
     Module.HEAPU8.set(rightFrame.data, rightPtr);
-    // Allocate memory for pose output (7 floats)
-    const posePtr = Module._malloc(7 * 4);
+    // Allocate memory for pose output (16 floats - same as monocular)
+    const posePtr = Module._malloc(16 * 4);
     const ok = Module.findStereoCameraPose(leftPtr, rightPtr, posePtr);
     let pose = null;
     if (ok) {
-      pose = new Float32Array(Module.HEAPF32.buffer, posePtr, 7).slice();
+      pose = new Float32Array(Module.HEAPF32.buffer, posePtr, 16).slice();
     }
     Module._free(leftPtr);
     Module._free(rightPtr);

@@ -119,6 +119,7 @@
 <script type="module">
   import Module from './assets/alva_ar.js';
   import { Stats } from './assets/stats.js';
+  import { AlvaAR } from './assets/alva_ar.js';
   import { ARCamView } from './assets/view.js';
 
   // Resolution parameters (change here to dynamically adjust resolution)
@@ -157,53 +158,6 @@
     });
   }
 
-  function createStereoAlvaAR(ModuleInstance) {
-    return {
-      findStereoCameraPose(leftFrame, rightFrame) {
-        if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
-          console.error('Emscripten Module or findStereoCameraPose not loaded');
-          return null;
-        }
-        const malloc = ModuleInstance.cwrap('malloc', 'number', ['number']);
-        const free = ModuleInstance.cwrap('free', null, ['number']);
-        const leftPtr = malloc(leftFrame.data.length);
-        const rightPtr = malloc(rightFrame.data.length);
-        ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
-        ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
-        const posePtr = malloc(7 * 4);
-        const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
-        let pose = null;
-        if (ok) {
-          pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
-        }
-        free(leftPtr);
-        free(rightPtr);
-        free(posePtr);
-        return pose;
-      },
-      reset() {
-        if (typeof ModuleInstance.reset === 'function') {
-          ModuleInstance.reset();
-        }
-      },
-      getFramePoints() {
-        if (typeof ModuleInstance.getStereoFramePoints === 'function') {
-          // Allocate buffer for up to 2048 points (4096 ints)
-          const n = 4096;
-          const buf = ModuleInstance._malloc(n * 4 * 2); // 2 ints per point
-          const numPoints = ModuleInstance.getStereoFramePoints(buf);
-          const result = [];
-          const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
-          for (let i = 0; i < numPoints; ++i) {
-            result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
-          }
-          ModuleInstance._free(buf);
-          return result;
-        }
-        return [];
-      }
-    };
-  }
 
   function connectWebSocketFrameStream(callback) {
     const ws = new WebSocket("ws://localhost:8765");
@@ -274,44 +228,7 @@
         ModuleInstance._free(rightPtr);
         ModuleInstance._free(framepointsBuf);
       });
-      alva = {
-        findStereoCameraPose(leftFrame, rightFrame) {
-          if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
-            console.error('Emscripten Module or findStereoCameraPose not loaded');
-            return null;
-          }
-          ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
-          ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
-          const posePtr = ModuleInstance._malloc(7 * 4);
-          const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
-          let pose = null;
-          if (ok) {
-            pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
-          }
-          ModuleInstance._free(posePtr);
-          return pose;
-        },
-        reset() {
-          if (typeof ModuleInstance.reset === 'function') {
-            ModuleInstance.reset();
-          }
-        },
-        getFramePoints() {
-          if (typeof ModuleInstance.getStereoFramePoints === 'function') {
-            const n = 4096;
-            const buf = ModuleInstance._malloc(n * 4 * 2); // 2 ints per point
-            const numPoints = ModuleInstance.getStereoFramePoints(buf);
-            const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
-            const result = [];
-            for (let i = 0; i < numPoints; ++i) {
-              result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
-            }
-            ModuleInstance._free(buf);
-            return result;
-          }
-          return [];
-        }
-      };
+
       // Restrict $view overlay to left image only
       $view.style.position = 'absolute';
       $view.style.left = '0px';
@@ -319,6 +236,7 @@
       $view.style.width = image_width + 'px';
       $view.style.height = image_height + 'px';
       $view.style.zIndex = '10';
+      alva = await AlvaAR.Initialize(640, 480); // only use left size
       view = new ARCamView($view, image_width, image_height, 0, 0, -8);
 
       stats = Stats;
@@ -360,7 +278,7 @@
             const rightFrame = ctx.getImageData(image_width, 0, image_width, image_height);
             stats.stop('video');
             stats.start('slam');
-            const pose = alva.findStereoCameraPose(leftFrame, rightFrame);
+            const pose = alva.findCameraPose(leftFrame);
             stats.stop('slam');
             if (pose) {
               view.updateCameraPose(pose);

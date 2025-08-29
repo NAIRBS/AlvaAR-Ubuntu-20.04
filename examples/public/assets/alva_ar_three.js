@@ -35,24 +35,12 @@ class AlvaARConnectorTHREE
                 return;
             }
             if (pose.length === 16) {
-                // 4x4 matrix (monocular)
+                // 4x4 matrix (both monocular and stereo now use this format)
                 const m = new THREE.Matrix4().fromArray( pose );
                 const r = new THREE.Quaternion().setFromRotationMatrix( m );
                 const t = new THREE.Vector3( pose[12], pose[13], pose[14] );
                 if (rotationQuaternion !== null) rotationQuaternion.set( -r.x, r.y, r.z, r.w );
                 if (translationVector !== null) translationVector.set( t.x, -t.y, -t.z );
-            } else if (pose.length === 7) {
-                // [tx, ty, tz, qx, qy, qz, qw] (stereo)
-                const t = new THREE.Vector3(pose[0], pose[1], pose[2]);
-                const q = new THREE.Quaternion(pose[3], pose[4], pose[5], pose[6]);
-                // Convert to 4x4 matrix
-                const m = new THREE.Matrix4();
-                m.makeRotationFromQuaternion(q);
-                m.setPosition(t);
-                const r = new THREE.Quaternion().setFromRotationMatrix(m);
-                // Apply same coordinate system transformations as 16-element format
-                if (rotationQuaternion !== null) rotationQuaternion.set(-r.x, r.y, r.z, r.w);
-                if (translationVector !== null) translationVector.set(t.x, -t.y, -t.z);
             } else {
                 console.warn('applyPose: Unknown pose format', pose);
             }
