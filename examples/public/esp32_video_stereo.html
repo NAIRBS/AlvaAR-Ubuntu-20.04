@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
   <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
-  <title>AlvaAR Stereo SLAM Demo</title>
+  <title>Stereo Video ESP32</title>
   <style>
     * {
       margin: 0;
@@ -25,6 +25,8 @@
 
     #container {
       position: relative;
+      width: 960px;
+      height: 320px;
       overflow: hidden;
       line-height: 0;
       border: 2px solid #333;
@@ -37,11 +39,15 @@
       user-select: none;
       top: 0;
       left: 0;
+      width: 960px;
+      height: 320px;
       animation: fadeIn 1.2s;
     }
 
     canvas {
       display: block;
+      width: 960px;
+      height: 320px;
     }
 
     #splash {
@@ -119,27 +125,8 @@
 <script type="module">
   import Module from './assets/alva_ar.js';
   import { Stats } from './assets/stats.js';
-  import { AlvaAR } from './assets/alva_ar.js';
   import { ARCamView } from './assets/view.js';
-
-  // Resolution parameters (change here to dynamically adjust resolution)
-  const image_width = 640;
-  const image_height = 480;
-
-  // Set container and child sizes dynamically
-  const container = document.getElementById('container');
-  container.style.width = (image_width * 2) + 'px';
-  container.style.height = image_height + 'px';
-
-  // Adjust container children size via CSSOM after DOM ready
-  function setContainerChildrenSize() {
-    for (const child of container.children) {
-      child.style.width = (image_width * 2) + 'px';
-      child.style.height = image_height + 'px';
-      child.style.top = '0px';
-      child.style.left = '0px';
-    }
-  }
+  import { Video } from './assets/utils.js'; // Added for video loading
 
   async function waitForEmscriptenModule(ModuleInstance) {
     return new Promise(resolve => {
@@ -158,42 +145,7 @@
     });
   }
 
-
-  function connectWebSocketFrameStream(callback) {
-    const ws = new WebSocket("ws://localhost:8765");
-    ws.binaryType = "arraybuffer";
-    ws.onopen = () => {
-      console.log("✅ Connected to WebSocket video stream");
-    };
-    ws.onerror = err => {
-      console.error("❌ WebSocket error:", err);
-    };
-    ws.onclose = () => {
-      console.warn("⚠️ WebSocket connection closed");
-    };
-    ws.onmessage = async event => {
-      try {
-        const arrayBuffer = event.data;
-        const view = new Uint8Array(arrayBuffer);
-        const sourceTag = String.fromCharCode(view[0]); // 'L' or 'R'
-        const jpegData = view.slice(1);
-        const blob = new Blob([jpegData], { type: 'image/jpeg' });
-        const bitmap = await createImageBitmap(blob);
-        callback(sourceTag, bitmap);
-      } catch (err) {
-        console.error("❌ Failed to decode image blob:", err);
-      }
-    };
-    return {
-      close() {
-        if (ws) ws.close();
-      }
-    };
-  }
-
   async function main() {
-    setContainerChildrenSize();
-
     const $container = document.getElementById('container');
     const $view = document.createElement('div');
     const $canvas = document.createElement('canvas');
@@ -203,41 +155,84 @@
     const splashFadeTime = 800;
 
     let alva, view, stats;
-    let latestFrameBitmapLeft = null;
-    let latestFrameBitmapRight = null;
+    let mediaLeft, mediaRight;
 
     async function demoStream() {
       const ModuleInstance = await Module();
       await waitForEmscriptenModule(ModuleInstance);
-      // Fetch the YAML file and set it in the WASM module
-      const yamlResponse = await fetch('./assets/d345i_640x480.yaml');
+
+      // Fetch stereo calibration
+      const yamlResponse = await fetch('./assets/stereo_camera.yaml');
       const yamlText = await yamlResponse.text();
       if (typeof ModuleInstance.setStereoCalibrationYAML === 'function') {
         ModuleInstance.setStereoCalibrationYAML(yamlText);
       } else {
         console.error('setStereoCalibrationYAML is not available on the Module instance.');
       }
-      // Persistent buffer allocation
-      const leftFrameSize = image_width * image_height * 4;
-      const framepointsBufSize = 4096 * 4;
-      const leftPtr = ModuleInstance._malloc(leftFrameSize);
-      const rightPtr = ModuleInstance._malloc(leftFrameSize);
-      const framepointsBuf = ModuleInstance._malloc(framepointsBufSize);
+
+      const leftPtr = ModuleInstance._malloc(480 * 320 * 4);
+      const rightPtr = ModuleInstance._malloc(480 * 320 * 4);
       window.addEventListener('unload', () => {
         ModuleInstance._free(leftPtr);
         ModuleInstance._free(rightPtr);
-        ModuleInstance._free(framepointsBuf);
       });
 
-      // Restrict $view overlay to left image only
+      alva = {
+        findStereoCameraPose(leftFrame, rightFrame) {
+          if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+            console.error('Emscripten Module or findStereoCameraPose not loaded');
+            return null;
+          }
+          ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
+          ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
+          const posePtr = ModuleInstance._malloc(16 * 4);
+          const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
+          let pose = null;  
+          if (ok) {
+            pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 16).slice();
+          }
+          ModuleInstance._free(posePtr);
+          return pose;
+        },
+        reset() {
+          if (typeof ModuleInstance.reset === 'function') {
+            ModuleInstance.reset();
+          }
+        },
+        getFramePoints() {
+          if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+            const n = 4096;
+            const buf = ModuleInstance._malloc(n * 4 * 2);
+            const numPoints = ModuleInstance.getStereoFramePoints(buf);
+            const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
+            const result = [];
+            for (let i = 0; i < numPoints; ++i) {
+              result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+            }
+            ModuleInstance._free(buf);
+            return result;
+          }
+          return [];
+        }
+      };
+
+      // Load videos instead of WebSocket stream
+      mediaLeft = await Video.Initialize('./assets/left_web1.mp4');
+      mediaRight = await Video.Initialize('./assets/right_web1.mp4');
+      mediaLeft.el.play();
+      mediaLeft.el.loop = true;
+      mediaRight.el.play();
+      mediaRight.el.loop = true;
+
+      // Overlay
       $view.style.position = 'absolute';
       $view.style.left = '0px';
       $view.style.top = '0px';
-      $view.style.width = image_width + 'px';
-      $view.style.height = image_height + 'px';
+      $view.style.width = '480px';
+      $view.style.height = '320px';
       $view.style.zIndex = '10';
-      alva = await AlvaAR.Initialize(640, 480); // only use left size
-      view = new ARCamView($view, image_width, image_height, 0, 0, -8);
+
+      view = new ARCamView($view, 480, 320, 0, 0, -8);
 
       stats = Stats;
       stats.add('total');
@@ -250,75 +245,97 @@
 
       document.body.addEventListener("click", () => alva.reset(), false);
 
-      connectWebSocketFrameStream((source, bitmap) => {
-        if (source === 'L') latestFrameBitmapLeft = bitmap;
-        else if (source === 'R') latestFrameBitmapRight = bitmap;
-      });
+      let firstFrame = true;
 
       function render() {
         stats.next();
         stats.start('total');
 
         const spacing = 0;
-        const boxWidth = image_width;
-        const boxHeight = image_height;
-        const width = image_width * 2 + spacing;
-        const height = image_height;
+        const width = 480 * 2 + spacing;
+        const height = 320;
         $canvas.width = width;
         $canvas.height = height;
         const ctx = $canvas.getContext('2d');
+        // ctx.clearRect(0, 0, width, height);
         ctx.clearRect(0, 0, $canvas.width, $canvas.height);
 
+        let frameLeft = null;
+        let frameRight = null;
+        let pose = null;
+
         if (!document.hidden) {
-          if (latestFrameBitmapLeft && latestFrameBitmapRight) {
-            ctx.drawImage(latestFrameBitmapLeft, 0, 0, image_width, image_height);
-            ctx.drawImage(latestFrameBitmapRight, image_width, 0, image_width, image_height);
-            stats.start('video');
-            const leftFrame = ctx.getImageData(0, 0, image_width, image_height);
-            const rightFrame = ctx.getImageData(image_width, 0, image_width, image_height);
-            stats.stop('video');
-            stats.start('slam');
-            const pose = alva.findCameraPose(leftFrame);
-            stats.stop('slam');
-            if (pose) {
-              view.updateCameraPose(pose);
-              const dots = alva.getFramePoints();
-              for (const p of dots) {
-                ctx.fillStyle = 'white';
-                ctx.fillRect(p.x, p.y, 2, 2);
+          frameLeft = mediaLeft.getImageData();
+          frameRight = mediaRight.getImageData();
+
+         if (!frameLeft || !frameRight || !frameLeft.data.length || !frameRight.data.length) {
+              requestAnimationFrame(render);
+              return;
+          }
+
+          if (frameLeft && frameRight) {
+          stats.start('video');
+        
+          ctx.putImageData(frameLeft, 0, 0);
+          ctx.putImageData(frameRight, 480 + spacing, 0);
+          
+          stats.stop('video');
+
+          stats.start('slam');
+          if (frameLeft && frameRight && frameLeft.data.length && frameRight.data.length) {
+              if (firstFrame) {
+                  alva.reset();  // Reset LK tracker on first valid frame
+                  firstFrame = false;
               }
-            } else {
-              view.lostCamera();
-              const dots = alva.getFramePoints();
-              for (const p of dots) {
-                ctx.fillStyle = 'white';
-                ctx.fillRect(p.x, p.y, 2, 2);
-              }
+              pose = alva.findStereoCameraPose(frameLeft, frameRight);
+          }
+          else {
+            requestAnimationFrame(render);
+            return;
+          }
+          stats.stop('slam');
+
+          if (pose) {
+            view.updateCameraPose(pose);
+          } else {
+            view.lostCamera();
+            const dots = alva.getFramePoints();
+            for (const p of dots) {
+              ctx.fillStyle = 'white';
+              ctx.fillRect(p.x, p.y, 2, 2);
             }
-            ctx.fillStyle = "rgba(0,0,0,0.6)";
-            ctx.fillRect(0, 0, image_width * 0.36, 25);
-            ctx.fillStyle = "white";
-            ctx.font = "16px Helvetica";
-            ctx.fillText("Left Camera (Stereo)", 10, 18);
-          } else if (latestFrameBitmapLeft) {
-            ctx.drawImage(latestFrameBitmapLeft, 0, 0, image_width, image_height);
+          }
+
+          // Labels
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(0, 0, 170, 25);
+          ctx.fillStyle = "white";
+          ctx.font = "16px Helvetica";
+          ctx.fillText("Left Camera (Stereo)", 10, 18);
+
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(480, 0, 120, 25);
+          ctx.fillStyle = "white";
+          ctx.fillText("Right Camera", 490, 18);
+        } else if (frameLeft) {
+            ctx.putImageData(frameLeft, 0, 0);
             ctx.fillStyle = "rgba(0,0,0,0.6)";
             ctx.fillRect(0, 0, 110, 25);
             ctx.fillStyle = "white";
             ctx.font = "16px Helvetica";
-            ctx.fillText("Left Camera", 10, 18);
+            ctx.fillText("Left Camera (Stereo)", 10, 18);
           }
-          if (latestFrameBitmapRight) {
-            ctx.drawImage(latestFrameBitmapRight, image_width, 0, image_width, image_height);
+          if (frameRight) {
+            ctx.putImageData(frameRight, 480 + spacing, 0);
             ctx.fillStyle = "rgba(0,0,0,0.6)";
-            ctx.fillRect(image_width, 0, 120, 25);
+            ctx.fillRect(480, 0, 120, 25);
             ctx.fillStyle = "white";
             ctx.font = "16px Helvetica";
-            ctx.fillText("Right Camera", image_width + 10, 18);
+            ctx.fillText("Right Camera", 490, 18);
           }
           ctx.beginPath();
-          ctx.moveTo(image_width, 0);
-          ctx.lineTo(image_width, image_height);
+          ctx.moveTo(480, 0);
+          ctx.lineTo(480, 320);
           ctx.strokeStyle = "#333";
           ctx.lineWidth = 2;
           ctx.stroke();

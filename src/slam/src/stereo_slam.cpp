@@ -21,12 +21,12 @@ void StereoSLAM::initialize(const CameraCalibration& left, const CameraCalibrati
     // Set up OV2SLAM-style pipeline
     int width = static_cast<int>(left.imgWidth_);
     int height = static_cast<int>(left.imgHeight_);
-    state_ = std::make_shared<State>(width, height, 20); // Lower max keypoints for speed
+    state_ = std::make_shared<State>(width, height, 35); // Use same cell size as monocular (40) but stereo uses 35
     state_->debug_ = false;
     state_->claheEnabled_ = false;
     state_->mapKeyframeFilteringRatio_ = 0.95;
     state_->p3pEnabled_ = true;
-    state_->frameMaxNumKeypoints_ = 20; // Aggressively limit keypoints
+    // frameMaxNumKeypoints_ is now calculated automatically like monocular SLAM
     state_->extractorMaxQuality_ = 0.01; // Be more selective
     currFrame_ = std::make_shared<Frame>(std::make_shared<CameraCalibration>(left), state_->frameMaxCellSize_);
     featureExtractor_ = std::make_shared<FeatureExtractor>(state_->extractorMaxQuality_);

@@ -49,15 +49,15 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     using namespace std::chrono;
     auto t_start = high_resolution_clock::now();
 
-    std::cerr << "[StereoSLAM] DEBUG: Function entry - posePtr: " << posePtr << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Function entry - posePtr: " << posePtr << std::endl;
 
     // Initialize pose buffer with zeros to prevent memory access errors
     float* out = reinterpret_cast<float*>(posePtr);
-    std::cerr << "[StereoSLAM] DEBUG: Initializing pose buffer at address: " << out << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Initializing pose buffer at address: " << out << std::endl;
     for (int i = 0; i < 16; ++i) {
         out[i] = 0.0f;
     }
-    std::cerr << "[StereoSLAM] DEBUG: Pose buffer initialized with zeros" << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Pose buffer initialized with zeros" << std::endl;
 
     static StereoCameraCalibration calib;
     static bool calib_loaded = false;
@@ -80,24 +80,24 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     int width = calib.left_.imgWidth_;
     int height = calib.left_.imgHeight_;
 
-    std::cerr << "[StereoSLAM] DEBUG: Image size: " << width << "x" << height << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Image size: " << width << "x" << height << std::endl;
 
     // Print image size at startup
     static bool printed_image_size = false;
     if (!printed_image_size) {
-        std::cerr << "[StereoSLAM] Image size: " << width << "x" << height << std::endl;
+        //std::cerr << "[StereoSLAM] Image size: " << width << "x" << height << std::endl;
         printed_image_size = true;
     }
 
     // 1. Grayscale conversion
-    std::cerr << "[StereoSLAM] DEBUG: Starting grayscale conversion" << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Starting grayscale conversion" << std::endl;
     auto t_gray0 = high_resolution_clock::now();
     cv::Mat left_rgba(height, width, CV_8UC4, reinterpret_cast<uint8_t*>(leftImagePtr));
     cv::Mat right_rgba(height, width, CV_8UC4, reinterpret_cast<uint8_t*>(rightImagePtr));
     cv::Mat left_gray, right_gray;
     cv::cvtColor(left_rgba, left_gray, cv::COLOR_RGBA2GRAY);
     cv::cvtColor(right_rgba, right_gray, cv::COLOR_RGBA2GRAY);
-    std::cerr << "[StereoSLAM] DEBUG: Grayscale conversion completed" << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Grayscale conversion completed" << std::endl;
     
 
     auto t_gray1 = high_resolution_clock::now();
@@ -110,14 +110,14 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     bool did_new_detection = false;
     // Use same parameters as monocular system for consistency
     int grid_cell_size = 40; // Same as monocular frameMaxCellSize
-    int grid_max_per_cell = 1; // One feature per cell (like monocular)
-    int grid_min_per_cell = 1;
-    double grid_quality = 0.001; // Same as monocular extractorMaxQuality_
+    int grid_max_per_cell = 2; // originally 1, lower back to 1 if there are performance issues
+    int grid_min_per_cell = 1; // originally 1
+    double grid_quality = 0.001; // originally 0.001
     int grid_num_cells_x = (width + grid_cell_size - 1) / grid_cell_size;
     int grid_num_cells_y = (height + grid_cell_size - 1) / grid_cell_size;
     ////////////////////////////////////////////////////////////////////////
     // int max_total_kps = 96; // Same as monocular: 12×8 = 96 features, this is for 480 x 360 resolution
-    int max_total_kps = 160; // Upscaled for 640 x 480 resolution 
+    int max_total_kps = 320; // Upscaled for 640 x 480 resolution, lower back to 160 if there are performance issues
     ////////////////////////////////////////////////////////////////////////
     if (is_first_frame || prev_left_gray.empty()) {
         // First frame: detect and describe
@@ -261,7 +261,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     tracked_desc_left = std::move(desc_left_filt);
 
     if (tracked_kps_left.empty()) {
-        std::cerr << "[StereoSLAM] DEBUG: No tracked keypoints, returning 0" << std::endl;
+        //std::cerr << "[StereoSLAM] DEBUG: No tracked keypoints, returning 0" << std::endl;
         return 0;
     }
 
@@ -295,7 +295,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     // LOG: Number of good stereo matches (may slow browser if too frequent)
     // std::cerr << "[StereoSLAM] Total left keypoints: " << tracked_kps_left.size() << ", Good stereo matches: " << good_pts_left.size() << std::endl;
     if (good_pts_left.size() < 2) {
-        std::cerr << "[StereoSLAM] DEBUG: Not enough good stereo matches: " << good_pts_left.size() << ", returning 0" << std::endl;
+        //std::cerr << "[StereoSLAM] DEBUG: Not enough good stereo matches: " << good_pts_left.size() << ", returning 0" << std::endl;
         return 0;
     }
 
@@ -325,7 +325,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         // std::cerr << "[StereoSLAM] WARNING: Fewer than 10 good 3D points for pose estimation. Pose may be unreliable." << std::endl;
     }
     if (filtered_points3d.size() < 2) {
-        std::cerr << "[StereoSLAM] DEBUG: Not enough 3D points after filtering: " << filtered_points3d.size() << ", returning 0" << std::endl;
+        //std::cerr << "[StereoSLAM] DEBUG: Not enough 3D points after filtering: " << filtered_points3d.size() << ", returning 0" << std::endl;
         return 0;
     }
 
@@ -393,7 +393,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
 
         if (good_prev_kps.size() < 8) {
             // Not enough temporal matches, update buffer and try again
-            std::cerr << "[StereoSLAM] DEBUG: Not enough temporal matches: " << good_prev_kps.size() << ", returning 0" << std::endl;
+            //std::cerr << "[StereoSLAM] DEBUG: Not enough temporal matches: " << good_prev_kps.size() << ", returning 0" << std::endl;
             prev_left_gray_for_init = left_gray.clone();
             prev_left_kps_for_init = curr_left_kps;
             return 0;
@@ -405,7 +405,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         
         if (E.empty()) {
             // Essential matrix computation failed
-            std::cerr << "[StereoSLAM] DEBUG: Essential matrix computation failed, returning 0" << std::endl;
+            //std::cerr << "[StereoSLAM] DEBUG: Essential matrix computation failed, returning 0" << std::endl;
             prev_left_gray_for_init = left_gray.clone();
             prev_left_kps_for_init = curr_left_kps;
             return 0;
@@ -444,7 +444,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
 
         if (good_stereo_left.size() < 4) {
             // Not enough stereo matches
-            std::cerr << "[StereoSLAM] DEBUG: Not enough stereo matches: " << good_stereo_left.size() << ", returning 0" << std::endl;
+            //std::cerr << "[StereoSLAM] DEBUG: Not enough stereo matches: " << good_stereo_left.size() << ", returning 0" << std::endl;
             prev_left_gray_for_init = left_gray.clone();
             prev_left_kps_for_init = curr_left_kps;
             return 0;
@@ -466,7 +466,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
 
         if (valid_stereo_3d.size() < 4) {
             // Not enough valid stereo 3D points
-            std::cerr << "[StereoSLAM] DEBUG: Not enough valid stereo 3D points: " << valid_stereo_3d.size() << ", returning 0" << std::endl;
+            //std::cerr << "[StereoSLAM] DEBUG: Not enough valid stereo 3D points: " << valid_stereo_3d.size() << ", returning 0" << std::endl;
             prev_left_gray_for_init = left_gray.clone();
             prev_left_kps_for_init = curr_left_kps;
             return 0;
@@ -490,7 +490,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
 
         if (common_prev.size() < 3) {
             // Not enough common points for scale recovery
-            std::cerr << "[StereoSLAM] DEBUG: Not enough common points for scale recovery: " << common_prev.size() << ", returning 0" << std::endl;
+            //std::cerr << "[StereoSLAM] DEBUG: Not enough common points for scale recovery: " << common_prev.size() << ", returning 0" << std::endl;
             prev_left_gray_for_init = left_gray.clone();
             prev_left_kps_for_init = curr_left_kps;
             return 0;
@@ -616,10 +616,10 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         }
     }
     // --- Output pose (always update AR object) ---
-    std::cerr << "[StereoSLAM] DEBUG: About to output pose using Utils::toPoseArray" << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: About to output pose using Utils::toPoseArray" << std::endl;
     // Use same 16-element format as monocular SLAM for consistency
     Utils::toPoseArray(current_pose, out);
-    std::cerr << "[StereoSLAM] DEBUG: Pose output completed successfully" << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Pose output completed successfully" << std::endl;
 
     // Debug: Print pose values
     // std::cerr << "[StereoSLAM] Pose output: t=[" << t.x() << ", " << t.y() << ", " << t.z() 
@@ -629,7 +629,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     auto t_end = high_resolution_clock::now();
     // std::cerr << "[PROFILE] TOTAL: " << duration_cast<milliseconds>(t_end-t_start).count() << " ms\n";
 
-    std::cerr << "[StereoSLAM] DEBUG: Function returning 1 (success)" << std::endl;
+    //std::cerr << "[StereoSLAM] DEBUG: Function returning 1 (success)" << std::endl;
     return 1;
 }
 

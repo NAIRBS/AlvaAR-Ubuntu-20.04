@@ -4,8 +4,7 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
   <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
-  <title>AlvaAR Camera (ROS2)</title>
-  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=">
+  <title>Mono Live ESP32</title>
   <style>
     * {
       margin: 0;
@@ -14,15 +13,6 @@
     }
 
     html, body {
-      /* font-family: 'Helvetica', sans-serif;
-      overflow: hidden;
-      background: #000;
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center; */
       font-family: 'Helvetica', sans-serif;
       overflow: hidden;
       background: #000;
@@ -34,18 +24,12 @@
     }
 
     #container {
-      /* position: relative;
-      width: 100%;
-      height: 100%;
-      display: block;
-      overflow: hidden;
-      line-height: 0; */
       position: relative;
-      width: 480px;
+      width: 960px;
       height: 320px;
       overflow: hidden;
       line-height: 0;
-      border: 1px solid #333;
+      border: 2px solid #333;
       box-shadow: 0 0 10px #000;
     }
 
@@ -55,20 +39,15 @@
       user-select: none;
       top: 0;
       left: 0;
-      /* width: 100%;
-      height: 100%; */
-      width: 480px;
+      width: 960px;
       height: 320px;
       animation: fadeIn 1.2s;
     }
 
     canvas {
       display: block;
-      width: 480px;
+      width: 960px;
       height: 320px;
-      /* position: absolute;
-      top: 0;
-      left: 0; */
     }
 
     #splash {
@@ -100,7 +79,7 @@
       position: absolute;
       width: 100%;
       white-space: pre-wrap;
-      content: "Waiting for ROS2 camera stream \A (topic: /stereo/left/rectified_images/compressed)";
+      content: "Waiting for ROS2 camera stream \A (topics: /stereo/left/rectified_images/compressed) \A (topics: /stereo/right/rectified_images/compressed)";
       top: calc(50% + 50px);
       text-align: center;
       color: #949494;
@@ -108,9 +87,9 @@
 
     #overlay button {
       background: transparent;
-      border: 1px solid rgb(255, 255, 255);
+      border: 1px solid white;
       border-radius: 4px;
-      color: #ffffff;
+      color: white;
       padding: 12px 18px;
       text-transform: uppercase;
       cursor: pointer;
@@ -143,63 +122,48 @@
   <div id="splash"></div>
 </div>
 
-<!-- ROS Bridge -->
 <script src="https://cdn.jsdelivr.net/npm/roslib/build/roslib.min.js"></script>
 
-<!-- Module Scripts -->
 <script type="module">
   import { Stats } from "./assets/stats.js";
   import { AlvaAR } from './assets/alva_ar.js';
   import { ARCamView } from "./assets/view.js";
-  import { onFrame } from "./assets/utils.js";
 
   function connectWebSocketFrameStream(callback) {
-    let ws;
-    let reconnectTimeout = null;
+    const ws = new WebSocket("ws://localhost:8765");
+    ws.binaryType = "arraybuffer";
 
-    function openWebSocket() {
-      ws = new WebSocket("ws://localhost:8765");
-      ws.binaryType = "blob";
+    ws.onopen = () => {
+      console.log("✅ Connected to WebSocket video stream");
+    };
 
-      ws.onopen = () => {
-        console.log("✅ Connected to WebSocket video stream");
-      };
+    ws.onerror = err => {
+      console.error("❌ WebSocket error:", err);
+    };
 
-      ws.onerror = err => {
-        console.error("❌ WebSocket error:", err);
-      };
+    ws.onclose = () => {
+      console.warn("⚠️ WebSocket connection closed");
+    };
 
-      ws.onclose = () => {
-        console.warn("⚠️ WebSocket connection closed, reconnecting in 2 seconds...");
-        // Attempt reconnect
-        if (reconnectTimeout === null) {
-          reconnectTimeout = setTimeout(() => {
-            reconnectTimeout = null;
-            openWebSocket();
-          }, 2000);
-        }
-      };
+    ws.onmessage = async event => {
+      try {
+        const arrayBuffer = event.data;
+        const view = new Uint8Array(arrayBuffer);
+        const sourceTag = String.fromCharCode(view[0]); // 'L' or 'R'
+        const jpegData = view.slice(1);
 
-      ws.onmessage = async event => {
-        try {
-          const blob = event.data;
-          const bitmap = await createImageBitmap(blob);
-          callback(bitmap);
-        } catch (err) {
-          console.error("❌ Failed to decode image blob:", err);
-        }
-      };
-    }
+        const blob = new Blob([jpegData], { type: 'image/jpeg' });
+        const bitmap = await createImageBitmap(blob);
 
-    openWebSocket();
+        callback(sourceTag, bitmap);
+      } catch (err) {
+        console.error("❌ Failed to decode image blob:", err);
+      }
+    };
 
     return {
       close() {
         if (ws) ws.close();
-        if (reconnectTimeout) {
-          clearTimeout(reconnectTimeout);
-          reconnectTimeout = null;
-        }
       }
     };
   }
@@ -213,32 +177,23 @@
     const $splash = document.getElementById('splash');
     const splashFadeTime = 800;
 
-    // Make sure container and canvas fill window exactly
-    function resize() {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      $container.style.width = w + 'px';
-      $container.style.height = h + 'px';
-      $canvas.width = w;
-      $canvas.height = h;
-      if (view) view.resize(w, h);
-    }
-
     let alva, view, stats;
-    let latestFrameBitmap = null;
-    let wsConnection = null;
+    let latestFrameBitmapLeft = null;
+    let latestFrameBitmapRight = null;
 
     async function demoStream() {
-      // resize();
-      const width = 480;
+      const spacing = 0; // CHANGE THIS TO ADD SPACING BETWEEN THE CAMERA FEEDS!!!
+      const boxWidth = 480;
+      const boxHeight = 320;
+      const width = 480 * 2 + spacing;
       const height = 320;
 
       $canvas.width = width;
       $canvas.height = height;
 
       const ctx = $canvas.getContext('2d');
-      alva = await AlvaAR.Initialize($canvas.width, $canvas.height);
-      view = new ARCamView($view, $canvas.width, $canvas.height);
+      alva = await AlvaAR.Initialize(480, 320); // only use left size
+      view = new ARCamView($view, 480, 320);
 
       stats = Stats;
       stats.add('total');
@@ -251,47 +206,85 @@
 
       document.body.addEventListener("click", () => alva.reset(), false);
 
-      // Start WebSocket streaming and update latestFrameBitmap
-      wsConnection = connectWebSocketFrameStream(bitmap => {
-        latestFrameBitmap = bitmap;
+      connectWebSocketFrameStream((source, bitmap) => {
+        if (source === 'L') latestFrameBitmapLeft = bitmap;
+        else if (source === 'R') latestFrameBitmapRight = bitmap;
       });
 
-      // Render loop with requestAnimationFrame for smoothness
       function render() {
         stats.next();
         stats.start('total');
 
         ctx.clearRect(0, 0, $canvas.width, $canvas.height);
 
-        if (!document.hidden && latestFrameBitmap) {
-          stats.start('video');
-          ctx.drawImage(latestFrameBitmap, 0, 0, $canvas.width, $canvas.height);
-          const frame = ctx.getImageData(0, 0, $canvas.width, $canvas.height);
-          stats.stop('video');
+        if (!document.hidden) {
+          // Left Image + SLAM
+          if (latestFrameBitmapLeft) {
+            ctx.drawImage(latestFrameBitmapLeft, 0, 0, 480, 320);
 
-          stats.start('slam');
-          const pose = alva.findCameraPose(frame);
-          stats.stop('slam');
+            // Run SLAM on left image
+            stats.start('video');
+            const frame = ctx.getImageData(0, 0, 480, 320);
+            stats.stop('video');
 
-          if (pose) {
-            view.updateCameraPose(pose);
-          } else {
-            view.lostCamera();
-            const dots = alva.getFramePoints();
-            for (const p of dots) {
-              ctx.fillStyle = 'white';
-              ctx.fillRect(p.x, p.y, 2, 2);
+            stats.start('slam');
+            const pose = alva.findCameraPose(frame);
+            stats.stop('slam');
+
+            if (pose) {
+              view.updateCameraPose(pose);
+            } else {
+              view.lostCamera();
+              const dots = alva.getFramePoints();
+              for (const p of dots) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(p.x, p.y, 2, 2);
+              }
             }
+
+            // Label
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(0, 0, 110, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Left Camera", 10, 18);
           }
+
+          // Right Image
+          if (latestFrameBitmapRight) {
+            ctx.drawImage(latestFrameBitmapRight, 480 + spacing, 0, 480, 320);
+
+            // Label
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(480, 0, 120 + spacing, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Right Camera", 490 + spacing, 18);
+          }
+
+          // Draw left separator line at the right edge of left box (x = 480)
+          ctx.beginPath();
+          ctx.moveTo(boxWidth, 0);
+          ctx.lineTo(boxWidth, boxHeight);
+          ctx.strokeStyle = "#333";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Draw right separator line at the left edge of right box (x = 480 + spacing)
+          ctx.beginPath();
+          ctx.moveTo(boxWidth + spacing, 0);
+          ctx.lineTo(boxWidth + spacing, boxHeight);
+          ctx.strokeStyle = "#333";
+          ctx.lineWidth = 2;
+          ctx.stroke();
         }
 
         stats.stop('total');
         stats.render();
         requestAnimationFrame(render);
       }
-      render();
 
-      //window.addEventListener('resize', resize);
+      render();
     }
 
     setTimeout(() => {

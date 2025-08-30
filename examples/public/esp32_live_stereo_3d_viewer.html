@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
   <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
-  <title>AlvaAR Stereo SLAM Demo with Pose View</title>
+  <title>Mono Live ESP32 3D Viewer</title>
   <style>
     * {
       margin: 0;
@@ -172,54 +172,6 @@
         }, 50);
       }
     });
-  }
-
-  function createStereoAlvaAR(ModuleInstance) {
-    return {
-      findStereoCameraPose(leftFrame, rightFrame) {
-        if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
-          console.error('Emscripten Module or findStereoCameraPose not loaded');
-          return null;
-        }
-        const malloc = ModuleInstance.cwrap('malloc', 'number', ['number']);
-        const free = ModuleInstance.cwrap('free', null, ['number']);
-        const leftPtr = malloc(leftFrame.data.length);
-        const rightPtr = malloc(rightFrame.data.length);
-        ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
-        ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
-        const posePtr = malloc(7 * 4);
-        const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
-        let pose = null;
-        if (ok) {
-          pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
-        }
-        free(leftPtr);
-        free(rightPtr);
-        free(posePtr);
-        return pose;
-      },
-      reset() {
-        if (typeof ModuleInstance.reset === 'function') {
-          ModuleInstance.reset();
-        }
-      },
-      getFramePoints() {
-        if (typeof ModuleInstance.getStereoFramePoints === 'function') {
-          // Allocate buffer for up to 2048 points (4096 ints)
-          const n = 4096;
-          const buf = ModuleInstance._malloc(n * 4); // 4 bytes per int
-          const numPoints = ModuleInstance.getStereoFramePoints(buf);
-          const result = [];
-          const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
-          for (let i = 0; i < numPoints; ++i) {
-            result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
-          }
-          ModuleInstance._free(buf);
-          return result;
-        }
-        return [];
-      }
-    };
   }
 
   function connectWebSocketFrameStream(callback) {

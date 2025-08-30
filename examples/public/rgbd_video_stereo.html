@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
   <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
-  <title>AlvaAR Stereo SLAM Demo</title>
+  <title>Stereo Video RGBD</title>
   <style>
     * {
       margin: 0;
@@ -145,53 +145,6 @@
     });
   }
 
-  // function invertPose(pose) {
-  //     const arr = Array.from(pose);
-  //     const [tx, ty, tz, qx, qy, qz, qw] = arr;
-
-  //     // Inverse quaternion = conjugate / (norm²)
-  //     const norm2 = qx*qx + qy*qy + qz*qz + qw*qw;
-  //     const qInv = [-qx/norm2, -qy/norm2, -qz/norm2, qw/norm2];
-
-  //     // Apply inverse rotation to translation
-  //     const tInv = rotateVecByQuat([-tx, -ty, -tz], qInv);
-
-  //     return [tInv[0], tInv[1], tInv[2], qInv[0], qInv[1], qInv[2], qInv[3]];
-  //   }
-
-  //   // Rotate a vector by a quaternion
-  //   function rotateVecByQuat(v, q) {
-  //     const [x, y, z] = v;
-  //     const [qx, qy, qz, qw] = q;
-
-  //     // quaternion * vector * quaternion^-1
-  //     const ix =  qw * x + qy * z - qz * y;
-  //     const iy =  qw * y + qz * x - qx * z;
-  //     const iz =  qw * z + qx * y - qy * x;
-  //     const iw = -qx * x - qy * y - qz * z;
-
-  //     return [
-  //       ix * qw + iw * -qx + iy * -qz - iz * -qy,
-  //       iy * qw + iw * -qy + iz * -qx - ix * -qz,
-  //       iz * qw + iw * -qz + ix * -qy - iy * -qx
-  //     ];
-  //   }
-
-    function toGrayUint8(imageData) {
-    const rgba = imageData.data;
-    const w = imageData.width;
-    const h = imageData.height;
-    const gray = new Uint8Array(w * h);
-
-    for (let i = 0; i < w * h; ++i) {
-      const r = rgba[i * 4];
-      const g = rgba[i * 4 + 1];
-      const b = rgba[i * 4 + 2];
-      gray[i] = (0.299*r + 0.587*g + 0.114*b) | 0;
-    }
-    return gray;
-  }
-
   async function main() {
     const $container = document.getElementById('container');
     const $view = document.createElement('div');
@@ -264,8 +217,12 @@
       };
 
       // Load videos instead of WebSocket stream
-      mediaLeft = await Video.Initialize('./assets/rgbd_left_web.mp4');
-      mediaRight = await Video.Initialize('./assets/rgbd_right_web.mp4');
+      // mediaLeft = await Video.Initialize('./assets/rgbd_left_web.mp4');
+      // mediaRight = await Video.Initialize('./assets/rgbd_right_web.mp4');
+      // mediaLeft = await Video.Initialize('./assets/ruler_left_web.mp4');
+      // mediaRight = await Video.Initialize('./assets/ruler_right_web.mp4');
+      mediaLeft = await Video.Initialize('./assets/v2_ruler_left_web.mp4');
+      mediaRight = await Video.Initialize('./assets/v2_ruler_right_web.mp4');
       mediaLeft.el.play();
       mediaLeft.el.loop = true;
       mediaRight.el.play();
