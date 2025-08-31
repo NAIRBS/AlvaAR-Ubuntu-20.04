@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlvaAR - Visual SLAM Demos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .demo-category {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .demo-category:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .category-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .demo-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .demo-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .demo-item h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+
+        .demo-item p {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .demo-link {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            transition: background 0.3s ease;
+        }
+
+        .demo-link:hover {
+            background: #5a6fd8;
+        }
+
+                 .resolution-badge {
+             display: inline-block;
+             background: #28a745;
+             color: white;
+             padding: 2px 8px;
+             border-radius: 12px;
+             font-size: 0.7rem;
+             margin-top: 5px;
+             margin-right: 5px;
+             width: fit-content;
+         }
+
+         .type-badge {
+             display: inline-block;
+             background: #ffc107;
+             color: #212529;
+             padding: 2px 8px;
+             border-radius: 12px;
+             font-size: 0.7rem;
+             margin-top: 5px;
+             width: fit-content;
+         }
+
+         .demo-item b {
+             display: block;
+             margin-bottom: 10px;
+         }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            padding: 20px;
+            opacity: 0.8;
+        }
+
+        .tech-info {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .tech-info h2 {
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .tech-info ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .tech-info li {
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .tech-info li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AlvaAR</h1>
+            <p>Real-time Visual SLAM for Web Browsers</p>
+        </div>
+
+        <div class="tech-info">
+            <h2>Technology Overview</h2>
+            <ul>
+                <li><strong>SLAM Engine:</strong> Modified OV²SLAM with ORB-SLAM2 features</li>
+                <li><strong>Platform:</strong> WebAssembly (WASM) for browser compatibility</li>
+                <li><strong>Visualization:</strong> Three.js for 3D AR rendering</li>
+                <li><strong>Input Sources:</strong> WebSocket streams, video files, web cameras</li>
+                <li><strong>Pose Format:</strong> 16-element 4x4 transformation matrices</li>
+            </ul>
+        </div>
+
+        <div class="demo-grid">
+            <!-- RGBD Camera Demos -->
+            <div class="demo-category">
+                <div class="category-title">📹 RGBD Camera Demos</div>
+                <div class="demo-item">
+                    <h3>RGBD AR Ruler (Video)</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Stereo</span></b>
+                    <p>Distance measurement tool using pre-recorded RGBD video. Test AR Ruler functionality with high-quality video input.</p>
+                    <a href="rgbd_video_AR_Ruler.html" class="demo-link">Launch Demo</a>
+                </div>
+
+                
+                <div class="demo-item">
+                    <h3>Live Stereo SLAM</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Stereo</span></b>
+                    <p>Real-time stereo SLAM using RGBD camera via WebSocket. Features dual camera display and metric scale recovery.</p>
+                    <a href="rgbd_live_stereo_640x480.html" class="demo-link">Launch Demo</a>
+                </div>
+
+                                 <div class="demo-item">
+                     <h3>Live Monocular SLAM</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Mono</span></b>
+                     <p>Real-time monocular SLAM using left camera from RGBD setup. Dual display with stereo input.</p>
+                     <a href="rgbd_live_mono_640x480.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>Video Stereo SLAM</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Stereo</span></b>
+                     <p>Stereo SLAM using pre-recorded video files. Demonstrates stereo pose estimation with video input.</p>
+                     <a href="rgbd_video_stereo.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>Video Monocular SLAM</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Mono</span></b>
+                     <p>Monocular SLAM using video files. Shows single camera pose estimation capabilities.</p>
+                     <a href="rgbd_video_mono.html" class="demo-link">Launch Demo</a>
+                 </div>
+            </div>
+
+            <!-- ESP32 Camera Demos -->
+            <div class="demo-category">
+                <div class="category-title">📱 ESP32 Camera Demos</div>
+                
+                                 <div class="demo-item">
+                     <h3>Live ESP32 Stereo</h3><b><span class="resolution-badge">480x320</span><span class="type-badge">Stereo</span></b>
+                     <p>Real-time stereo SLAM using ESP32 camera modules via WebSocket. Dynamic resolution adaptation.</p>
+                     <a href="esp32_live_stereo.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>Live ESP32 Monocular</h3><b><span class="resolution-badge">480x320</span><span class="type-badge">Mono</span></b>
+                     <p>Real-time monocular SLAM using ESP32 camera. Optimized for embedded camera performance.</p>
+                     <a href="esp32_live_mono.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>ESP32 3D Viewer</h3><b><span class="resolution-badge">480x320</span><span class="type-badge">Stereo</span></b>
+                     <p>Advanced 3D visualization for ESP32 stereo SLAM. Features enhanced 3D scene rendering.</p>
+                     <a href="esp32_live_stereo_3d_viewer.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>ESP32 AR Ruler (Live)</h3><b><span class="resolution-badge">480x320</span><span class="type-badge">Stereo</span></b>
+                     <p>Real-time distance measurement tool using ESP32 stereo SLAM. Place markers and measure distances in 3D space.</p>
+                     <a href="esp32_live_AR_Ruler.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>ESP32 Video Stereo</h3><b><span class="resolution-badge">480x320</span><span class="type-badge">Stereo</span></b>
+                     <p>Stereo SLAM using ESP32 video files. Demonstrates ESP32 camera capabilities with recorded footage.</p>
+                     <a href="esp32_video_stereo.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>ESP32 Video Monocular</h3><b><span class="resolution-badge">480x320</span><span class="type-badge">Mono</span></b>
+                     <p>Monocular SLAM using ESP32 video files. Shows single camera tracking with ESP32 input.</p>
+                     <a href="esp32_video_mono.html" class="demo-link">Launch Demo</a>
+                 </div>
+            </div>
+
+            <!-- General Demos -->
+            <div class="demo-category">
+                <div class="category-title">🌐 General Demos</div>
+                
+                                 <div class="demo-item">
+                     <h3>Web Camera SLAM</h3><b><span class="type-badge">Mono</span></b>
+                     <p>Live monocular SLAM using your device's web camera. Dynamic resolution adaptation.</p>
+                     <a href="camera.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>Video File SLAM</h3><b><span class="type-badge">Mono</span></b>
+                     <p>Monocular SLAM using uploaded video files. Supports various video formats and resolutions.</p>
+                     <a href="video.html" class="demo-link">Launch Demo</a>
+                 </div>
+
+                 <div class="demo-item">
+                     <h3>IMU Integration</h3><b><span class="type-badge">Mono+IMU</span></b>
+                     <p>INCOMPLETE: Monocular SLAM with IMU sensor fusion. Combines visual and inertial data for enhanced tracking.</p>
+                     <a href="imu.html" class="demo-link">Launch Demo</a>
+                 </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>AlvaAR</strong> - Real-time Visual SLAM for Web Browsers</p>
+            <p>Based on OV²SLAM and ORB-SLAM2 | Powered by WebAssembly and Three.js</p>
+        </div>
+    </div>
+</body>
+</html>

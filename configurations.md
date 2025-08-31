@@ -54,6 +54,8 @@ AlvaAR implements a **modified ACCURATE configuration** with additional optimiza
 | `esp32_live_stereo.html` | ESP32-CAM WebSocket | Stereo | Dynamic | Dual camera | ESP32 stereo stream |
 | `esp32_video_stereo.html` | Video file | Stereo | Dynamic | Dual camera | ESP32 stereo video |
 | `esp32_live_stereo_3d_viewer.html` | ESP32-CAM WebSocket | Stereo | Dynamic | Dual camera | ESP32 3D viewer |
+| `esp32_live_AR_Ruler.html` | ESP32-CAM WebSocket | Stereo | 480x320 | Dual camera | AR Ruler with live ESP32 stream |
+| `rgbd_video_AR_Ruler.html` | Video file | Stereo | 640x480 | Dual camera | AR Ruler with pre-recorded RGBD video |
 | `imu.html` | Phone Camera + IMU | Monocular + IMU | Dynamic | Single camera | IMU integration |
 
 ### Key Configuration Details

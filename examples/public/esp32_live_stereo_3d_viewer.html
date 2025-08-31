@@ -250,11 +250,11 @@
           }
           ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
           ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
-          const posePtr = ModuleInstance._malloc(7 * 4);
+          const posePtr = ModuleInstance._malloc(16 * 4);
           const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
           let pose = null;
           if (ok) {
-            pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 7).slice();
+            pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 16).slice();
           }
           ModuleInstance._free(posePtr);
           return pose;
