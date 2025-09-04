@@ -11,8 +11,13 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
 
 #### [Note that for the video demo, if you are on Ubuntu Firefox, you may have to go to "about:preferences" → General → Make sure “Play DRM-controlled content” is enabled.]
 
-[Video Demo](https://alanross.github.io/AlvaAR/examples/public/video.html): A desktop browser version using a video file as input.  
-[Camera Demo](https://alanross.github.io/AlvaAR/examples/public/camera.html): The mobile version will access the device camera as input.
+## [Index](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/index.html): All available websites
+
+## [AlvaAR Ruler](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/rgbd_video_AR_Ruler.html): Example of AR Ruler with recorded RGBD camera video.
+
+## [Video Demo](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/video.html): A desktop browser version using a video file as input.  
+
+## [Camera Demo](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/camera.html): The mobile version will access the device camera as input.
 
 <img width="75" src="examples/public/assets/qr.png">
 
@@ -66,6 +71,18 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
 
     nvm install 18
     nvm use 18
+
+    # Setup IP address resolution for same network streaming
+    sudo apt update
+    sudo apt install avahi-daemon avahi-utils libnss-mdns
+
+    sudo systemctl enable avahi-daemon
+    sudo systemctl start avahi-daemon
+
+    systemctl status avahi-daemon
+
+    # You might have to change the hostname based on your server, its now hardcoded to my desktop.
+    avahi-resolve-host-name $(hostname).local
 ```
 
 ## After running the above, you need to build 3 things
