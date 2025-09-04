@@ -130,7 +130,9 @@
   import { ARCamView } from "./assets/view.js";
 
   function connectWebSocketFrameStream(callback) {
-    const ws = new WebSocket("ws://NAIRB-DESK.local:8765");
+    //const ws = new WebSocket("wss://NAIRB-DESK.local:8765"); // try with non static IP
+    //const ws = new WebSocket("ws://172.21.0.1:8765"); // try with avahi resolve host static name
+    const ws = new WebSocket("ws://172.21.1.30:8765"); // try with desktop WSL IP
     ws.binaryType = "arraybuffer";
 
     ws.onopen = () => {
