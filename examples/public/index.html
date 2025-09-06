@@ -202,10 +202,22 @@
             <!-- RGBD Camera Demos -->
             <div class="demo-category">
                 <div class="category-title">📹 RGBD Camera Demos</div>
-                <div class="demo-item">
+                <!-- <div class="demo-item">
                     <h3>RGBD AR Ruler (Video)</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Stereo</span></b>
                     <p>Distance measurement tool using pre-recorded RGBD video. Test AR Ruler functionality with high-quality video input.</p>
                     <a href="rgbd_video_AR_Ruler.html" class="demo-link">Launch Demo</a>
+                </div> -->
+
+                <div class="demo-item">
+                    <h3>RGBD AR Ruler (Video) Visualizer</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Stereo</span></b>
+                    <p>Enhanced AR Ruler with 3D scene visualizer. Features coordinate system fixes and improved camera tracking.</p>
+                    <a href="rgbd_video_AR_Ruler_visualizer.html" class="demo-link">Launch Demo</a>
+                </div>
+
+                <div class="demo-item">
+                    <h3>RGBD Stereo (Video) Visualizer</h3><b><span class="resolution-badge">640x480</span><span class="type-badge">Stereo</span></b>
+                    <p>Advanced stereo SLAM with 3D scene visualization. Features coordinate system fixes and feature point alignment.</p>
+                    <a href="rgbd_video_stereo_visualizer.html" class="demo-link">Launch Demo</a>
                 </div>
 
                 
@@ -273,6 +285,12 @@
                      <p>Monocular SLAM using ESP32 video files. Shows single camera tracking with ESP32 input.</p>
                      <a href="esp32_video_mono.html" class="demo-link">Launch Demo</a>
                  </div>
+
+                 <div class="demo-item">
+                     <h3>ESP32 Internet Live Mono</h3><b><span class="resolution-badge">480x320</span><span class="type-badge">Mono</span></b>
+                     <p>Real-time monocular SLAM using ESP32 camera via internet connection. Optimized for remote streaming.</p>
+                     <a href="esp32_internet_live_mono.html" class="demo-link">Launch Demo</a>
+                 </div>
             </div>
 
             <!-- General Demos -->
@@ -296,6 +314,35 @@
                      <p>INCOMPLETE: Monocular SLAM with IMU sensor fusion. Combines visual and inertial data for enhanced tracking.</p>
                      <a href="imu.html" class="demo-link">Launch Demo</a>
                  </div>
+            </div>
+
+            <!-- Sandbox Demos -->
+            <div class="demo-category">
+                <div class="category-title">🧪 Sandbox Demos</div>
+                
+                <div class="demo-item">
+                    <h3>GPU Performance Test</h3><b><span class="type-badge">Test</span></b>
+                    <p>GPU performance testing and WebGL capabilities demonstration. Useful for debugging rendering issues.</p>
+                    <a href="sandbox/gpu.html" class="demo-link">Launch Demo</a>
+                </div>
+
+                <div class="demo-item">
+                    <h3>IMU Data Reader</h3><b><span class="type-badge">IMU</span></b>
+                    <p>IMU sensor data reading and visualization. Test IMU data acquisition and processing.</p>
+                    <a href="sandbox/imu_read.html" class="demo-link">Launch Demo</a>
+                </div>
+
+                <div class="demo-item">
+                    <h3>IMU Data Sender</h3><b><span class="type-badge">IMU</span></b>
+                    <p>IMU data transmission testing. Send IMU data to SLAM system for sensor fusion testing.</p>
+                    <a href="sandbox/imu_send.html" class="demo-link">Launch Demo</a>
+                </div>
+
+                <div class="demo-item">
+                    <h3>IMU Data Sender v2</h3><b><span class="type-badge">IMU</span></b>
+                    <p>Enhanced IMU data transmission with improved data formatting and error handling.</p>
+                    <a href="sandbox/imu_send2.html" class="demo-link">Launch Demo</a>
+                </div>
             </div>
         </div>
 

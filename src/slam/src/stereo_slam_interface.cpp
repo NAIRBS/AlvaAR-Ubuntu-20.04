@@ -28,6 +28,9 @@ static std::string g_stereo_calib_yaml_string;
 // Persistent buffer for last left image keypoints for JS visualization
 static std::vector<cv::Point2f> lastStereoLeftKeypoints;
 
+// Persistent buffer for last triangulated 3D points for plane detection
+static std::vector<cv::Point3d> lastStereo3DPoints;
+
 // Add temporal buffer for hybrid initialization
 static cv::Mat prev_left_gray_for_init;
 static std::vector<cv::Point2f> prev_left_kps_for_init;
@@ -328,6 +331,9 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         //std::cerr << "[StereoSLAM] DEBUG: Not enough 3D points after filtering: " << filtered_points3d.size() << ", returning 0" << std::endl;
         return 0;
     }
+
+    // Store 3D points for plane detection
+    lastStereo3DPoints = filtered_points3d;
 
     // --- Map-based, keyframe-driven stereo SLAM ---
     static bool scale_initialized = false;
@@ -640,6 +646,18 @@ extern "C" int getStereoFramePoints(int pointsPtr) {
     for (int i = 0, j = 0; i < n; ++i) {
         data[j++] = (int)lastStereoLeftKeypoints[i].x;
         data[j++] = (int)lastStereoLeftKeypoints[i].y;
+    }
+    return n;
+}
+
+// Expose 3D points to JS for plane detection
+extern "C" int getStereoFramePoints3D(int points3DPtr) {
+    int n = std::min((int)lastStereo3DPoints.size(), 1000); // Limit for performance
+    float* data = reinterpret_cast<float*>(points3DPtr);
+    for (int i = 0; i < n; ++i) {
+        data[i * 3] = (float)lastStereo3DPoints[i].x;
+        data[i * 3 + 1] = (float)lastStereo3DPoints[i].y;
+        data[i * 3 + 2] = (float)lastStereo3DPoints[i].z;
     }
     return n;
 } 

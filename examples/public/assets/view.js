@@ -159,7 +159,7 @@ class ARSimpleView
         this.renderer.setSize( width, height );
         this.renderer.setPixelRatio( window.devicePixelRatio );
 
-        this.camera = new THREE.PerspectiveCamera( 75, width / height, 0.1, 1000 );
+        this.camera = new THREE.PerspectiveCamera( 75, width / height, 0.1, 10 ); // the 10 was originally 1000 to limit the frustum length (how far the camera can see)
         this.camera.rotation.reorder( 'YXZ' );
         this.camera.updateProjectionMatrix();
 
@@ -183,6 +183,12 @@ class ARSimpleView
     updateCameraPose( pose )
     {
         this.applyPose( pose, this.camera.quaternion, this.camera.position );
+
+        // Update camera helper if it exists
+        if( this.mapView && this.mapView.camHelper )
+        {
+            this.mapView.camHelper.update();
+        }
 
         this.renderer.render( this.scene, this.camera );
 

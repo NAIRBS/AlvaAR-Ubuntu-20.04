@@ -248,9 +248,74 @@ class ARRulerSystem {
 </div>
 ```
 
+## 3D Visualizer Dimensions and Scale
+
+**Important**: The SLAM system uses **metric scale** (real-world meters). All dimensions below are in **meters**.
+
+### Grid Helper
+- **Size**: 150 meters × 150 meters (150x150 grid)
+- **Divisions**: 100 subdivisions (each square = 1.5 meters)
+- **Position**: Y = -1 meter (below ground level)
+- **Color**: Default Three.js grid colors
+
+### RGB Axis Helper
+- **Size**: 0.25 meters length per axis
+- **Position**: Origin (0, 0, 0)
+- **Colors**: 
+  - Red = X-axis (right)
+  - Green = Y-axis (up) 
+  - Blue = Z-axis (forward)
+
+### Camera Helper (Frustum)
+- **Far Plane Distance**: 5 meters (reduced from 1000 for better visualization)
+- **Near Plane**: 0.01 meters (1 cm)
+- **Field of View**: 50 degrees
+- **Color**: Red (0xff0000)
+- **Scale**: (1, 1, 1) - can be adjusted for visualization
+
+### Feature Points (Orange Spheres)
+- **Size**: 0.02 meters radius (2 cm diameter)
+- **Color**: Orange (0xff6600)
+- **Opacity**: 0.8 (semi-transparent)
+- **Geometry**: 8x8 sphere segments
+
+### Real-World Scale Reference
+- **Each grid square**: 1.5 meters × 1.5 meters
+- **RGB axes**: 25 cm long each
+- **Camera frustum depth**: 5 meters (from 1 cm to 5 meters)
+- **Feature points**: 2 cm diameter spheres
+- **Grid total area**: 150m × 150m = 22,500 square meters
+
+## SLAM to Three.js Coordinate Transformation
+
+### Critical Transformation Required
+The SLAM system outputs poses in a different coordinate system than Three.js. The following transformation must be applied for consistency:
+
+```javascript
+// Position transformation (AlvaARConnectorTHREE standard)
+const position = new THREE.Vector3(pose[12], -pose[13], -pose[14]);
+
+// Rotation transformation (AlvaARConnectorTHREE standard)
+const rotationMatrix = new THREE.Matrix4().fromArray(pose);
+const quaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+quaternion.set(-quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+```
+
+### Why This Transformation is Needed
+1. **SLAM Output**: Uses computer vision coordinate system (Y-up, Z-backward)
+2. **Three.js Standard**: Uses OpenGL coordinate system (Y-up, Z-forward)
+3. **AlvaARConnectorTHREE**: Provides the standard transformation between these systems
+
+### Applied in Multiple Places
+- **Camera Position**: `view.camera.position.copy(position)`
+- **Camera Rotation**: `view.camera.quaternion.copy(quaternion)`
+- **Marker Placement**: `getCameraTransform()` function
+- **Scene Visualizer**: `updateSceneVisualizer()` function
+
 ## Key Features
 - **RANSAC Plane Detection**: Improves measurement accuracy by detecting and projecting onto measurement surfaces
 - **Real-time Distance**: Continuous distance calculation with visual feedback
 - **Visual Markers**: Clear start/end point indicators with color coding
 - **Measurement Line**: Dynamic line showing measurement path
 - **Error Handling**: Robust handling of SLAM tracking loss and measurement errors
+- **Coordinate System Consistency**: Proper SLAM-to-Three.js transformation applied throughout

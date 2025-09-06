@@ -26,4 +26,5 @@ EMSCRIPTEN_BINDINGS(Module)
     }));
     function("findStereoCameraPose", &findStereoCameraPose, allow_raw_pointers());
     function("getStereoFramePoints", &getStereoFramePoints, allow_raw_pointers());
+    function("getStereoFramePoints3D", &getStereoFramePoints3D, allow_raw_pointers());
 }

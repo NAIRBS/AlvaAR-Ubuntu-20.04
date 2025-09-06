@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
+  <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
+  <title>Stereo Video RGBD with 3D Visualizer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      font-family: 'Helvetica', sans-serif;
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #main-container {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    #container {
+      position: relative;
+      width: 1280px;
+      height: 480px;
+      overflow: hidden;
+      line-height: 0;
+      border: 2px solid #333;
+      box-shadow: 0 0 10px #000;
+    }
+
+    #container > * {
+      position: absolute;
+      display: block;
+      user-select: none;
+      top: 0;
+      left: 0;
+      width: 1280px;
+      height: 480px;
+      animation: fadeIn 1.2s;
+    }
+
+    #visualizer-panel {
+      width: 400px;
+      height: 480px;
+      border: 2px solid #333;
+      box-shadow: 0 0 10px #000;
+      background: #fff;
+      position: relative;
+    }
+
+    #visualizer-panel::after {
+      content: "3D Scene Visualizer";
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #333;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 10;
+    }
+
+    canvas {
+      display: block;
+      width: 1280px;
+      height: 480px;
+    }
+
+    #splash {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      opacity: 1;
+    }
+
+    #overlay {
+      position: absolute;
+      font-size: 16px;
+      z-index: 2;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    #overlay::before {
+      position: absolute;
+      width: 100%;
+      white-space: pre-wrap;
+      content: "Stereo Video RGBD with 3D Visualizer \A Using pre-recorded RGBD stereo video \A (v2_ruler_left_web.mp4 / v2_ruler_right_web.mp4) \A Click on video to add 3D objects";
+      top: calc(50% + 50px);
+      text-align: center;
+      color: #949494;
+    }
+
+    #overlay button {
+      background: transparent;
+      border: 1px solid white;
+      border-radius: 4px;
+      color: white;
+      padding: 12px 18px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    @keyframes fadeIn {
+      0% { opacity: 0; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    @media screen and (max-device-width: 480px) and (orientation: landscape) {
+      #main-container { display: none; }
+      body::before {
+        content: "Rotate device to portrait mode.";
+        color: white;
+      }
+    }
+
+    @media screen and (max-device-width: 480px) and (orientation: portrait) {
+      #main-container { display: flex; }
+      body::before { content: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="main-container">
+  <div id="container"></div>
+  <div id="visualizer-panel"></div>
+</div>
+<div id="overlay">
+  <button id="start_button">Start</button>
+  <div id="splash"></div>
+</div>
+
+<script type="module">
+  import Module from './assets/alva_ar.js';
+  import { Stats } from './assets/stats.js';
+  import { ARSimpleView, ARSimpleMap } from './assets/view.js';
+  import { Video } from './assets/utils.js';
+  import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
+
+  async function waitForEmscriptenModule(ModuleInstance) {
+    return new Promise(resolve => {
+      if (ModuleInstance && ModuleInstance.calledRun) {
+        resolve();
+      } else if (ModuleInstance && typeof ModuleInstance.onRuntimeInitialized === 'function') {
+        ModuleInstance.onRuntimeInitialized = resolve;
+      } else {
+        const check = setInterval(() => {
+          if (ModuleInstance && ModuleInstance.calledRun) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 50);
+      }
+    });
+  }
+
+  async function main() {
+    const $container = document.getElementById('container');
+    const $visualizerContainer = document.getElementById('visualizer-panel');
+    const $view = document.createElement('div');
+    const $canvas = document.createElement('canvas');
+    const $overlay = document.getElementById('overlay');
+    const $start = document.getElementById('start_button');
+    const $splash = document.getElementById('splash');
+    const splashFadeTime = 800;
+
+    let alva, view, stats, sceneVisualizer;
+    let mediaLeft, mediaRight;
+
+    async function demoStream() {
+      const ModuleInstance = await Module();
+      await waitForEmscriptenModule(ModuleInstance);
+
+      // Fetch stereo calibration
+      const yamlResponse = await fetch('./assets/d345i_640x480.yaml');
+      const yamlText = await yamlResponse.text();
+      if (typeof ModuleInstance.setStereoCalibrationYAML === 'function') {
+        ModuleInstance.setStereoCalibrationYAML(yamlText);
+      } else {
+        console.error('setStereoCalibrationYAML is not available on the Module instance.');
+      }
+
+      const leftPtr = ModuleInstance._malloc(640 * 480 * 4);
+      const rightPtr = ModuleInstance._malloc(640 * 480 * 4);
+      window.addEventListener('unload', () => {
+        ModuleInstance._free(leftPtr);
+        ModuleInstance._free(rightPtr);
+      });
+
+      alva = {
+        findStereoCameraPose(leftFrame, rightFrame) {
+          if (!ModuleInstance || typeof ModuleInstance.findStereoCameraPose !== 'function') {
+            console.error('Emscripten Module or findStereoCameraPose not loaded');
+            return null;
+          }
+          ModuleInstance.HEAPU8.set(leftFrame.data, leftPtr);
+          ModuleInstance.HEAPU8.set(rightFrame.data, rightPtr);
+          const posePtr = ModuleInstance._malloc(16 * 4);
+          const ok = ModuleInstance.findStereoCameraPose(leftPtr, rightPtr, posePtr);
+          let pose = null;  
+          if (ok) {
+            pose = new Float32Array(ModuleInstance.HEAPF32.buffer, posePtr, 16).slice();
+          }
+          ModuleInstance._free(posePtr);
+          return pose;
+        },
+        reset() {
+          if (typeof ModuleInstance.reset === 'function') {
+            ModuleInstance.reset();
+          }
+        },
+        getFramePoints() {
+          if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+            const n = 4096;
+            const buf = ModuleInstance._malloc(n * 4 * 2);
+            const numPoints = ModuleInstance.getStereoFramePoints(buf);
+            const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
+            const result = [];
+            for (let i = 0; i < numPoints; ++i) {
+              result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+            }
+            ModuleInstance._free(buf);
+            return result;
+          }
+          return [];
+        },
+        getFramePoints3D() {
+          if (typeof ModuleInstance.getStereoFramePoints3D === 'function') {
+            const n = 4096;
+            const buf = ModuleInstance._malloc(n * 4 * 3); // 3 floats per 3D point
+            const numPoints = ModuleInstance.getStereoFramePoints3D(buf);
+            const arr = new Float32Array(ModuleInstance.HEAPF32.buffer, buf, numPoints * 3);
+            const result = [];
+            for (let i = 0; i < numPoints; ++i) {
+              result.push(new THREE.Vector3(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]));
+            }
+            ModuleInstance._free(buf);
+            return result;
+          }
+          return [];
+        }
+      };
+
+      // Load videos instead of WebSocket stream
+      mediaLeft = await Video.Initialize('./assets/v2_ruler_left_web.mp4');
+      mediaRight = await Video.Initialize('./assets/v2_ruler_right_web.mp4');
+      mediaLeft.el.play();
+      mediaLeft.el.loop = true;
+      mediaRight.el.play();
+      mediaRight.el.loop = true;
+      
+      // Add event listeners for video loop to refresh visualizer
+      mediaLeft.el.addEventListener('ended', () => {
+        console.log('Video looped - refreshing visualizer');
+        refreshVisualizer();
+      });
+      
+      mediaRight.el.addEventListener('ended', () => {
+        console.log('Video looped - refreshing visualizer');
+        refreshVisualizer();
+      });
+
+      // Overlay - similar to video.html structure
+      $view.style.position = 'absolute';
+      $view.style.left = '0px';
+      $view.style.top = '0px';
+      $view.style.width = '640px';
+      $view.style.height = '480px';
+      $view.style.zIndex = '10';
+
+      // Initialize 3D Scene Visualizer using ARSimpleMap like video.html
+      const mapRenderer = new ARSimpleMap($visualizerContainer, 400, 480);
+      const camRenderer = new ARSimpleView($view, 640, 480, mapRenderer);
+      
+      // Make the camera helper bigger and red
+      setTimeout(() => {
+        if (mapRenderer.camHelper) {
+          mapRenderer.camHelper.scale.set(1, 1, 1); // Make the camera frustum 3x bigger
+          mapRenderer.camHelper.visible = true; // Ensure it's visible
+          mapRenderer.camHelper.material.color.setHex(0xff0000); // Red color
+          mapRenderer.camHelper.material.needsUpdate = true;
+          
+          console.log('Camera helper scaled, made visible, and colored red');
+        } else {
+          console.log('Camera helper not found');
+        }
+      }, 100);
+      
+      // Store references for later use
+      sceneVisualizer = mapRenderer;
+      view = camRenderer;
+
+      stats = Stats;
+      stats.add('total');
+      stats.add('video');
+      stats.add('slam');
+
+      $container.appendChild($canvas);
+      $container.appendChild($view);
+      document.body.appendChild(stats.el);
+
+      document.body.addEventListener("click", () => alva.reset(), false);
+
+      let firstFrame = true;
+
+      // Function to create camera frustum geometry using a simpler approach
+      function createCameraFrustumGeometry(camera) {
+        // Use a simple cone geometry as a frustum approximation
+        // This is more stable than custom BufferGeometry
+        const geometry = new THREE.ConeGeometry(1, 2, 8, 1, true);
+        
+        // Scale and position to approximate camera frustum
+        geometry.scale(0.5, 1, 0.5);
+        geometry.rotateX(Math.PI / 2);
+        geometry.translate(0, 0, -1);
+        
+        return geometry;
+      }
+
+      // Function to update custom frustum geometry to match camera
+      function updateCustomFrustum(customFrustum, camera) {
+        // For now, just keep the same geometry to avoid the error
+        // The frustum will still show the general camera direction
+        return;
+      }
+
+      // Function to refresh/clear the visualizer when video loops
+      function refreshVisualizer() {
+        if (!sceneVisualizer) return;
+        
+        // Clear all feature points
+        if (sceneVisualizer.featurePoints) {
+          sceneVisualizer.featurePoints.forEach(point => {
+            sceneVisualizer.scene.remove(point);
+          });
+          sceneVisualizer.featurePoints = [];
+        }
+        
+        // Reset camera helper visibility
+        if (sceneVisualizer.camHelper) {
+          sceneVisualizer.camHelper.visible = false;
+        }
+        
+        // Reset the view (this will hide any created objects)
+        if (view) {
+          view.reset();
+        }
+        
+        // Reset SLAM system
+        if (alva && alva.reset) {
+          alva.reset();
+        }
+        
+        // Reset first frame flag
+        firstFrame = true;
+        
+        console.log('Visualizer refreshed - all objects cleared');
+      }
+
+      // Function to update the 3D scene visualizer - simplified like video.html
+      function updateSceneVisualizer(pose) {
+        if (!sceneVisualizer || !view) return;
+        
+        // Use the standard ARSimpleView updateCameraPose method like video.html
+        view.updateCameraPose(pose);
+        
+        // Debug: Log detailed coordinate information
+        console.log('=== COORDINATE DEBUG ===');
+        console.log('Raw pose from SLAM:', pose);
+        if (pose.length === 16) {
+          console.log('Pose matrix translation (raw):', {x: pose[12], y: pose[13], z: pose[14]});
+          console.log('Pose matrix translation (after AlvaAR transform):', {x: pose[12], y: -pose[13], z: -pose[14]});
+        }
+        console.log('Camera position (after AlvaAR transform):', view.camera.position);
+        console.log('Camera quaternion (after AlvaAR transform):', view.camera.quaternion);
+        if (sceneVisualizer.camHelper) {
+          console.log('Camera helper position:', sceneVisualizer.camHelper.position);
+          console.log('Camera helper quaternion:', sceneVisualizer.camHelper.quaternion);
+        }
+        
+        // CRITICAL FIX: The monocular SLAM is initialized with ZERO distortion parameters
+        // while stereo triangulation uses correct distortion. This causes pose drift.
+        // We need to use a much more aggressive approach to prevent this mismatch.
+        
+        if (window.lastValidPose) {
+          const currentTranslation = new THREE.Vector3(pose[12], -pose[13], -pose[14]);
+          const lastTranslation = new THREE.Vector3(window.lastValidPose[12], -window.lastValidPose[13], -window.lastValidPose[14]);
+          const translationDiff = currentTranslation.distanceTo(lastTranslation);
+          
+          // Calculate rotation difference
+          const currentMatrix = new THREE.Matrix4().fromArray(pose);
+          const lastMatrix = new THREE.Matrix4().fromArray(window.lastValidPose);
+          const currentQuat = new THREE.Quaternion().setFromRotationMatrix(currentMatrix);
+          const lastQuat = new THREE.Quaternion().setFromRotationMatrix(lastMatrix);
+          const rotationDiff = Math.abs(currentQuat.dot(lastQuat));
+          
+          // EXTREMELY CONSERVATIVE CONSTRAINTS due to distortion mismatch
+          const maxTranslationPerFrame = 0.02; // 2cm per frame (extremely conservative)
+          const minRotationSimilarity = 0.995; // Almost no rotation changes allowed
+          
+          // If movement is too large, heavily constrain it
+          if (translationDiff > maxTranslationPerFrame || rotationDiff < minRotationSimilarity) {
+            console.warn(`DISTORTION MISMATCH: Unrealistic camera movement! Translation: ${translationDiff.toFixed(3)}m, Rotation similarity: ${rotationDiff.toFixed(3)}`);
+            
+            // Apply EXTREMELY strong smoothing to prevent wild movement
+            const smoothingFactor = 0.02; // 98% previous pose, 2% new pose
+            const constrainedPose = [...pose];
+            
+            // Constrain translation
+            constrainedPose[12] = window.lastValidPose[12] * (1 - smoothingFactor) + pose[12] * smoothingFactor;
+            constrainedPose[13] = window.lastValidPose[13] * (1 - smoothingFactor) + pose[13] * smoothingFactor;
+            constrainedPose[14] = window.lastValidPose[14] * (1 - smoothingFactor) + pose[14] * smoothingFactor;
+            
+            // Constrain rotation
+            for (let i = 0; i < 12; i++) {
+              constrainedPose[i] = window.lastValidPose[i] * (1 - smoothingFactor) + pose[i] * smoothingFactor;
+            }
+            
+            pose = constrainedPose;
+          }
+          
+          // Update last valid pose
+          window.lastValidPose = [...pose];
+        } else {
+          // Initialize tracking variables
+          window.lastValidPose = [...pose];
+        }
+        
+        // Ensure camera helper is visible, scaled, and colored red when pose is detected
+        if (sceneVisualizer.camHelper) {
+          sceneVisualizer.camHelper.visible = true;
+          if (sceneVisualizer.camHelper.scale.x !== 3) {
+            sceneVisualizer.camHelper.scale.set(3, 3, 3);
+          }
+          // sceneVisualizer.camHelper.scale.set(0.01, 0.01, 0.01);
+          // Ensure the camera helper stays red
+          sceneVisualizer.camHelper.material.color.setHex(0xff0000);
+          sceneVisualizer.camHelper.material.needsUpdate = true;
+        }
+        
+        // ALTERNATIVE APPROACH: Try to estimate camera pose from 3D feature points
+        // Since the monocular SLAM has distortion mismatch, let's try to use the 3D points directly
+        const points3D = alva.getFramePoints3D();
+        if (points3D && points3D.length > 10 && window.lastValidPose) {
+          // Calculate the center of mass of feature points
+          const featureCenter = new THREE.Vector3();
+          points3D.forEach(point => featureCenter.add(point));
+          featureCenter.divideScalar(points3D.length);
+          
+          // Calculate the distance from camera to feature center
+          const cameraToFeatures = featureCenter.distanceTo(view.camera.position);
+          
+          // If the camera is too far from features, try to estimate a better pose
+          const maxDistanceFromFeatures = 2.0; // 2 meters max distance
+          if (cameraToFeatures > maxDistanceFromFeatures) {
+            console.warn(`Camera too far from features! Distance: ${cameraToFeatures.toFixed(3)}m, attempting pose correction`);
+            
+            // Try to estimate a better camera position based on feature points
+            // Assume camera should be at a reasonable distance from features
+            const targetDistance = 1.5; // 1.5 meters from feature center
+            const direction = featureCenter.clone().normalize();
+            const targetPosition = direction.multiplyScalar(targetDistance);
+            
+            // Create a new pose with corrected position
+            const correctedPose = [...window.lastValidPose];
+            correctedPose[12] = targetPosition.x;
+            correctedPose[13] = -targetPosition.y; // Apply coordinate transform
+            correctedPose[14] = -targetPosition.z; // Apply coordinate transform
+            
+            // Use the corrected pose
+            pose = correctedPose;
+            window.lastValidPose = [...pose];
+            
+            console.log(`Corrected camera position to: (${targetPosition.x.toFixed(3)}, ${targetPosition.y.toFixed(3)}, ${targetPosition.z.toFixed(3)})`);
+          }
+        }
+        
+        // Visualize 3D feature points
+        visualizeFeaturePoints();
+      }
+      
+      // Function to visualize 3D feature points from SLAM - simplified for ARSimpleMap
+      function visualizeFeaturePoints() {
+        if (!sceneVisualizer || !alva.getFramePoints3D) return;
+        
+        // Get 3D points from SLAM system
+        const points3D = alva.getFramePoints3D();
+        if (!points3D || points3D.length === 0) return;
+        
+        // Debug: Log feature point information
+        console.log('=== FEATURE POINTS DEBUG ===');
+        console.log('Number of feature points:', points3D.length);
+        if (points3D.length > 0) {
+          console.log('First 3 feature points (original from SLAM):');
+          for (let i = 0; i < Math.min(3, points3D.length); i++) {
+            console.log(`  Point ${i}:`, points3D[i]);
+          }
+        }
+        
+        // Clear previous feature points
+        if (sceneVisualizer.featurePoints) {
+          sceneVisualizer.featurePoints.forEach(point => {
+            sceneVisualizer.scene.remove(point);
+          });
+        }
+        sceneVisualizer.featurePoints = [];
+        
+        // Create new feature points (limit to avoid performance issues)
+        const maxPoints = Math.min(points3D.length, 100);
+        for (let i = 0; i < maxPoints; i++) {
+          const point3D = points3D[i];
+          
+          // Apply the SAME coordinate transformation as the camera to maintain consistency
+          // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
+          const transformedPosition = new THREE.Vector3(point3D.x, -point3D.y, -point3D.z);
+          
+          // Create small sphere for each 3D point
+          const geometry = new THREE.SphereGeometry(0.01, 8, 8);
+          const material = new THREE.MeshBasicMaterial({ 
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.7
+          });
+          const sphere = new THREE.Mesh(geometry, material);
+          sphere.position.copy(transformedPosition);
+          
+          sceneVisualizer.scene.add(sphere);
+          sceneVisualizer.featurePoints.push(sphere);
+          
+          // Debug: Calculate distance from camera to first few feature points
+          if (i < 3) {
+            const distance = view.camera.position.distanceTo(sphere.position);
+            console.log(`Distance from camera to feature point ${i}:`, distance.toFixed(3));
+            console.log(`Feature point ${i} original: (${point3D.x.toFixed(3)}, ${point3D.y.toFixed(3)}, ${point3D.z.toFixed(3)})`);
+            console.log(`Feature point ${i} transformed: (${transformedPosition.x.toFixed(3)}, ${transformedPosition.y.toFixed(3)}, ${transformedPosition.z.toFixed(3)})`);
+            console.log(`Camera position: (${view.camera.position.x.toFixed(3)}, ${view.camera.position.y.toFixed(3)}, ${view.camera.position.z.toFixed(3)})`);
+          }
+        }
+      }
+      
+      // Add click handler for creating objects like video.html
+      let doFindPlane = false;
+      $view.addEventListener('click', (event) => doFindPlane = true);
+
+      function render() {
+        stats.next();
+        stats.start('total');
+
+        const spacing = 0;
+        const width = 640 * 2 + spacing;
+        const height = 480;
+        $canvas.width = width;
+        $canvas.height = height;
+        const ctx = $canvas.getContext('2d');
+        ctx.clearRect(0, 0, $canvas.width, $canvas.height);
+
+        let frameLeft = null;
+        let frameRight = null;
+        let pose = null;
+
+        if (!document.hidden) {
+          frameLeft = mediaLeft.getImageData();
+          frameRight = mediaRight.getImageData();
+
+         if (!frameLeft || !frameRight || !frameLeft.data.length || !frameRight.data.length) {
+              requestAnimationFrame(render);
+              return;
+          }
+
+          if (frameLeft && frameRight) {
+          stats.start('video');
+        
+          ctx.putImageData(frameLeft, 0, 0);
+          ctx.putImageData(frameRight, 640 + spacing, 0);
+          
+          stats.stop('video');
+
+          stats.start('slam');
+          if (frameLeft && frameRight && frameLeft.data.length && frameRight.data.length) {
+              if (firstFrame) {
+                  alva.reset();  // Reset LK tracker on first valid frame
+                  firstFrame = false;
+              }
+              pose = alva.findStereoCameraPose(frameLeft, frameRight);
+          }
+          else {
+            requestAnimationFrame(render);
+            return;
+          }
+          stats.stop('slam');
+
+          if (pose) {
+            view.updateCameraPose(pose);
+            
+            // Update 3D Scene Visualizer
+            updateSceneVisualizer(pose);
+            
+            // Handle plane finding like video.html
+            if (doFindPlane) {
+              const planePose = alva.findPlane();
+              if (planePose) {
+                view.createObjectWithPose(planePose);
+                doFindPlane = false;
+              }
+            }
+            
+            const dots = alva.getFramePoints();
+            for (const p of dots) {
+              ctx.fillStyle = 'white';
+              ctx.fillRect(p.x, p.y, 4, 4);
+            }
+          } else {
+            view.lostCamera();
+            const dots = alva.getFramePoints();
+            for (const p of dots) {
+              ctx.fillStyle = 'white';
+              ctx.fillRect(p.x, p.y, 2, 2);
+            }
+          }
+
+          // Labels
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(0, 0, 170, 25);
+          ctx.fillStyle = "white";
+          ctx.font = "16px Helvetica";
+          ctx.fillText("Left Camera (Stereo)", 10, 18);
+
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(640, 0, 120, 25);
+          ctx.fillStyle = "white";
+          ctx.fillText("Right Camera", 650, 18);
+        } else if (frameLeft) {
+            ctx.putImageData(frameLeft, 0, 0);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(0, 0, 110, 25);
+            ctx.fillStyle = "white";
+            ctx.font = "16px Helvetica";
+            ctx.fillText("Left Camera (Stereo)", 10, 18);
+          }
+          if (frameRight) {
+            ctx.putImageData(frameRight, 650 + spacing, 0);
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(640, 0, 120, 25);
+            ctx.fillStyle = "white";
+            ctx.fillText("Right Camera", 650, 18);
+          }
+          ctx.beginPath();
+          ctx.moveTo(640, 0);
+          ctx.lineTo(640, 480);
+          ctx.strokeStyle = "#333";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        stats.stop('total');
+        stats.render();
+        requestAnimationFrame(render);
+      }
+      render();
+    }
+
+    setTimeout(() => {
+      $splash.remove();
+      $start.addEventListener('click', () => {
+        $overlay.remove();
+        demoStream();
+      }, { once: true });
+    }, splashFadeTime);
+  }
+
+  window.addEventListener('load', main);
+</script>
+</body>
+</html>
