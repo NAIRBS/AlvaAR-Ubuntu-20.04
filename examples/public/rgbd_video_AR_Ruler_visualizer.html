@@ -334,13 +334,18 @@
       const dx = endPoint.x - startPoint.x;
       const dy = endPoint.y - startPoint.y;
       const dz = endPoint.z - startPoint.z;
-      return Math.sqrt(dx*dx + dy*dy + dz*dz);
+      const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      
+      // MONOCULAR SCALE: The measurements are already in monocular scale
+      // No additional scaling needed since we're using monocular pose directly
+      return distance;
     }
 
     // Get camera position and direction from pose matrix
     getCameraTransform(poseMatrix) {
       // Apply AlvaAR coordinate transform for consistency with stereo visualizer
       // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z) for position
+      // MONOCULAR POSE: Use position directly (no scaling needed)
       const position = new THREE.Vector3(poseMatrix[12], -poseMatrix[13], -poseMatrix[14]);
       
       // Extract rotation matrix and apply AlvaARConnectorTHREE transformation
@@ -417,10 +422,10 @@
         this.visualizer.createEndMarker(this.endPoint);
       }
       
-      const finalDistance = this.calculateDistance(this.startPoint, this.endPoint);
+      const finalDistance = this.calculateDistance(this.startPoint, this.endPoint)/50; //divide by 50 to get reverse scaled distance
       
       if (this.ui) {
-        this.ui.updateDistance(finalDistance);
+        this.ui.updateDistance(finalDistance); //finalDistance already divided by 50
         this.ui.updateStatus('Measurement complete');
       }
       
@@ -458,7 +463,7 @@
         const distance = this.calculateDistance(this.startPoint, currentEndPoint);
         
         if (this.ui) {
-          this.ui.updateDistance(distance);
+          this.ui.updateDistance(distance / 50); //divide by 50 to get reverse scaled distance
         }
         
         if (this.visualizer) {
@@ -954,18 +959,20 @@
       function updateSceneVisualizer(pose) {
         if (!sceneVisualizer || !view) return;
         
-        // Use the standard ARSimpleView updateCameraPose method like stereo visualizer
+        // MONOCULAR POSE: Use pose directly (no scaling needed)
+        // The monocular SLAM pose is already at the correct scale for Three.js
         view.updateCameraPose(pose);
         
         // Debug: Log detailed coordinate information (only occasionally to prevent memory leaks)
         if (window.debugCounter === undefined) window.debugCounter = 0;
         window.debugCounter++;
         if (window.debugCounter % 60 === 0) { // Log every 60 frames (2 seconds at 30fps)
-          console.log('=== COORDINATE DEBUG (Frame ' + window.debugCounter + ') ===');
+          console.log('=== MONOCULAR POSE DEBUG (Frame ' + window.debugCounter + ') ===');
           if (pose.length === 16) {
-            console.log('Pose matrix translation (raw):', {x: pose[12], y: pose[13], z: pose[14]});
+            console.log('Monocular pose (direct):', {x: pose[12].toFixed(3), y: pose[13].toFixed(3), z: pose[14].toFixed(3)});
           }
           console.log('Camera position:', view.camera.position);
+          console.log('Using monocular SLAM pose directly (no scaling)');
         }
         
         // CRITICAL FIX: The monocular SLAM is initialized with ZERO distortion parameters
@@ -1132,7 +1139,7 @@
         
         // Create shared geometry and material to reduce memory usage
         if (!sceneVisualizer.featureGeometry) {
-          sceneVisualizer.featureGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+          sceneVisualizer.featureGeometry = new THREE.SphereGeometry(0.2, 8, 8); // Increased from 0.02 to 0.05
         }
         if (!sceneVisualizer.featureMaterial) {
           sceneVisualizer.featureMaterial = new THREE.MeshBasicMaterial({ 
@@ -1151,7 +1158,10 @@
           const sphere = new THREE.Mesh(sceneVisualizer.featureGeometry, sceneVisualizer.featureMaterial);
           // Apply the SAME coordinate transformation as the camera to maintain consistency
           // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
-          sphere.position.set(point3D.x, -point3D.y, -point3D.z);
+          // SCALE feature points to match monocular pose scale
+          // Feature points come from stereo triangulation (metric scale) but need to match monocular pose scale
+          const monocularScaleFactor = 50; // Adjust this based on monocular drift - stereo points are much larger than monocular pose
+          sphere.position.set(point3D.x * monocularScaleFactor, -point3D.y * monocularScaleFactor, -point3D.z * monocularScaleFactor);
           
           sceneVisualizer.scene.add(sphere);
           sceneVisualizer.featurePoints.push(sphere);
