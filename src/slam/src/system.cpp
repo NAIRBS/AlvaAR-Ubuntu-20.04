@@ -372,3 +372,17 @@ bool System::relocalize(std::shared_ptr<Frame> currFrame) {
 void System::checkLoopClosure(std::shared_ptr<Frame> currFrame) {
     // Disabled: BoW place recognition
 }
+
+// Set initial pose to transfer scale from stereo to monocular system
+void System::setInitialPose(const Sophus::SE3d& initialPose) {
+    if (currFrame_) {
+        currFrame_->setTwc(initialPose);
+        std::cerr << "[System] Initial pose set: t=[" << initialPose.translation().x() 
+                  << ", " << initialPose.translation().y() << ", " << initialPose.translation().z() << "]" << std::endl;
+    }
+    
+    if (state_) {
+        state_->slamReadyForInit_ = true;
+        std::cerr << "[System] SLAM marked as ready for initialization with stereo scale" << std::endl;
+    }
+}

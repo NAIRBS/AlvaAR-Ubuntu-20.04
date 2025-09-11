@@ -159,7 +159,7 @@ class ARSimpleView
         this.renderer.setSize( width, height );
         this.renderer.setPixelRatio( window.devicePixelRatio );
 
-        this.camera = new THREE.PerspectiveCamera( 75, width / height, 0.1, 20 ); // the 20 was originally 1000 to limit the frustum length (how far the camera can see)
+        this.camera = new THREE.PerspectiveCamera( 75, width / height, 0.1, 50 ); // the 20 was originally 1000 to limit the frustum length (how far the camera can see)
         this.camera.rotation.reorder( 'YXZ' );
         this.camera.updateProjectionMatrix();
 

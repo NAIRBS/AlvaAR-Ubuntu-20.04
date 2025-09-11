@@ -405,9 +405,12 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
             return 0;
         }
 
-        // Compute 5-point essential matrix
+        // Compute 5-point essential matrix using proper camera calibration
+        cv::Mat K = (cv::Mat_<double>(3,3) << calib.left_.fx_, 0, calib.left_.cx_, 
+                                         0, calib.left_.fy_, calib.left_.cy_, 
+                                         0, 0, 1);
         cv::Mat E = cv::findEssentialMat(good_prev_kps, good_curr_kps, 
-            cv::Mat::eye(3, 3, CV_64F), cv::RANSAC, 0.999, 1.0);
+            K, cv::RANSAC, 0.999, 1.0);
         
         if (E.empty()) {
             // Essential matrix computation failed
@@ -417,9 +420,9 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
             return 0;
         }
 
-        // Recover pose from essential matrix (up to scale)
+        // Recover pose from essential matrix (up to scale) using proper camera calibration
         cv::Mat R, t;
-        cv::recoverPose(E, good_prev_kps, good_curr_kps, R, t);
+        cv::recoverPose(E, good_prev_kps, good_curr_kps, K, R, t);
         
         // Convert to Sophus::SE3d (up to scale)
         Sophus::SE3d Twc_mono;
@@ -566,9 +569,18 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         // Initialize monocular system for pose updates
         if (!monocular_system_initialized) {
             monocular_system = std::make_unique<System>();
-            monocular_system->configure(width, height, calib.left_.fx_, calib.left_.fy_, calib.left_.cx_, calib.left_.cy_, 0, 0, 0, 0);
+            monocular_system->configure(width, height, calib.left_.fx_, calib.left_.fy_, calib.left_.cx_, calib.left_.cy_, 
+                                       calib.left_.k1_, calib.left_.k2_, calib.left_.p1_, calib.left_.p2_);
+            
+            // CRITICAL: Set the initial pose in the monocular system to match stereo scale
+            // This prevents the monocular system from reinitializing in its own scale space
+            monocular_system->setInitialPose(current_pose);
+            
             monocular_system_initialized = true;
-            // std::cerr << "[StereoSLAM] Monocular system initialized for pose updates" << std::endl;
+            std::cerr << "[StereoSLAM] Monocular system initialized with calibration: fx=" << calib.left_.fx_ 
+                      << ", fy=" << calib.left_.fy_ << ", k1=" << calib.left_.k1_ << ", k2=" << calib.left_.k2_ << std::endl;
+            std::cerr << "[StereoSLAM] Initial pose set in monocular system: t=[" << current_pose.translation().x() 
+                      << ", " << current_pose.translation().y() << ", " << current_pose.translation().z() << "]" << std::endl;
         }
         
         // Update buffer for next frame

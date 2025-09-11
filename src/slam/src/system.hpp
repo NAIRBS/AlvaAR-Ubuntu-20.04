@@ -45,6 +45,8 @@ public:
 
     int processCameraPose(cv::Mat &image, double timestamp);
 
+    void setInitialPose(const Sophus::SE3d& initialPose);
+
 private:
     cv::Mat processPlane(std::vector<Eigen::Vector3d> mapPoints, Sophus::SE3d Twc, int numIterations = 50);
 
