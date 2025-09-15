@@ -635,7 +635,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     }
     // --- Output pose (always update AR object) ---
     //std::cerr << "[StereoSLAM] DEBUG: About to output pose using Utils::toPoseArray" << std::endl;
-    // Use same 16-element format as monocular SLAM for consistency
+    // Use same 16-element format as monocular SLAM for 
     Utils::toPoseArray(current_pose, out);
     //std::cerr << "[StereoSLAM] DEBUG: Pose output completed successfully" << std::endl;
 

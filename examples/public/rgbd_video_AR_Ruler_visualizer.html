@@ -311,6 +311,9 @@
   import { Video } from './assets/utils.js';
   import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
 
+  // Centralized monocular scale factor for AR ruler measurements
+  const MONOCULAR_SCALE_FACTOR = 50;
+
   async function waitForEmscriptenModule(ModuleInstance) {
     return new Promise(resolve => {
       if (ModuleInstance && ModuleInstance.calledRun) {
@@ -549,7 +552,7 @@
       let maxInlierCount = 0;
 
       // Apply coordinate transformation to match the system
-      const monocularScaleFactor = 50;
+      const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
       const transformedPoints = points3D.map(point3D => new THREE.Vector3(
         point3D.x * monocularScaleFactor,
         -point3D.y * monocularScaleFactor,
@@ -613,7 +616,7 @@
         return null;
       }
 
-      const monocularScaleFactor = 50;
+      const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
       const transformedPoints = points3D.map(point3D => new THREE.Vector3(
         point3D.x * monocularScaleFactor,
         -point3D.y * monocularScaleFactor,
@@ -719,7 +722,7 @@
       let raycastPoint = null;
       let bestDistance = Infinity;
       
-      const monocularScaleFactor = 50;
+      const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
       for (const point of points3D) {
         const transformedPoint = new THREE.Vector3(
           point.x * monocularScaleFactor,
@@ -744,7 +747,7 @@
 
       // Analyze point distribution
       if (points3D.length > 0) {
-        const monocularScaleFactor = 50;
+        const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
         const transformedPoints = points3D.map(point3D => new THREE.Vector3(
           point3D.x * monocularScaleFactor,
           -point3D.y * monocularScaleFactor,
@@ -944,7 +947,7 @@
       // Find the 3D point that is closest to the ray line
       for (const point3D of points3D) {
         // Apply the same coordinate transformation as used for feature points
-        const monocularScaleFactor = 50; // Match the scaling used in visualizeFeaturePoints
+        const monocularScaleFactor = MONOCULAR_SCALE_FACTOR; // Match the scaling used in visualizeFeaturePoints
         const transformedPoint = new THREE.Vector3(
           point3D.x * monocularScaleFactor, 
           -point3D.y * monocularScaleFactor, 
@@ -994,7 +997,7 @@
       }
       
       // Return the best point if found, otherwise fallback
-      if (bestPoint && bestRayDistance < 50) { // Within 50cm of ray line
+      if (bestPoint && bestRayDistance < MONOCULAR_SCALE_FACTOR) { // Within scale factor distance of ray line
         if (window.debugCounter % 30 === 0) {
           console.log('Raycast to best 3D point:', bestPoint, 
                      'ray distance:', bestRayDistance.toFixed(3), 
@@ -1046,10 +1049,10 @@
         this.visualizer.createEndMarker(this.endPoint);
       }
       
-      const finalDistance = this.calculateDistance(this.startPoint, this.endPoint)/50; //divide by 50 to get reverse scaled distance
+      const finalDistance = this.calculateDistance(this.startPoint, this.endPoint)/MONOCULAR_SCALE_FACTOR; //divide by scale factor to get reverse scaled distance
       
       if (this.ui) {
-        this.ui.updateDistance(finalDistance); //finalDistance already divided by 50
+        this.ui.updateDistance(finalDistance); //finalDistance already divided by scale factor
         this.ui.updateStatus('Measurement complete');
       }
       
@@ -1087,7 +1090,7 @@
         const distance = this.calculateDistance(this.startPoint, currentEndPoint);
         
         if (this.ui) {
-          this.ui.updateDistance(distance / 50); //divide by 50 to get reverse scaled distance
+          this.ui.updateDistance(distance / MONOCULAR_SCALE_FACTOR); //divide by scale factor to get reverse scaled distance
         }
         
         if (this.visualizer) {
@@ -1960,8 +1963,9 @@
         sceneVisualizer.featurePoints = [];
         
         // Create shared geometry and material to reduce memory usage
-        if (!sceneVisualizer.featureGeometry) {
-          sceneVisualizer.featureGeometry = new THREE.SphereGeometry(0.2, 8, 8); // Increased from 0.02 to 0.05
+        if (!sceneVisualizer.featureGeometry) { // FEATURE POINT SIZE
+          //sceneVisualizer.featureGeometry = new THREE.SphereGeometry(0.2, 8, 8); // Increased from 0.02 to 0.05
+          sceneVisualizer.featureGeometry = new THREE.SphereGeometry(0.004*MONOCULAR_SCALE_FACTOR, 8, 8); // Increased from 0.02 to 0.05
         }
         if (!sceneVisualizer.featureMaterial) {
           sceneVisualizer.featureMaterial = new THREE.MeshBasicMaterial({ 
@@ -1982,7 +1986,7 @@
           // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
           // SCALE feature points to match monocular pose scale
           // Feature points come from stereo triangulation (metric scale) but need to match monocular pose scale
-          const monocularScaleFactor = 50; // Adjust this based on monocular drift - stereo points are much larger than monocular pose
+          const monocularScaleFactor = MONOCULAR_SCALE_FACTOR; // Adjust this based on monocular drift - stereo points are much larger than monocular pose
           sphere.position.set(point3D.x * monocularScaleFactor, -point3D.y * monocularScaleFactor, -point3D.z * monocularScaleFactor);
           
           sceneVisualizer.scene.add(sphere);
