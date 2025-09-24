@@ -1,0 +1,274 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Helvetica', sans-serif;
+  overflow: hidden;
+  background: #000;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#main-container {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+#container {
+  position: relative;
+  width: 1280px;
+  height: 480px;
+  overflow: hidden;
+  line-height: 0;
+  border: 2px solid #333;
+  box-shadow: 0 0 10px #000;
+}
+
+#container > * {
+  position: absolute;
+  display: block;
+  user-select: none;
+  top: 0;
+  left: 0;
+  width: 1280px;
+  height: 480px;
+  animation: fadeIn 1.2s;
+}
+
+#measurement-panel {
+  width: 320px;
+  height: 480px;
+  border: 2px solid #333;
+  box-shadow: 0 0 10px #000;
+  background: #fff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+#visualizer-panel {
+  width: 400px;
+  height: 480px;
+  border: 2px solid #333;
+  box-shadow: 0 0 10px #000;
+  background: #fff;
+  position: relative;
+}
+
+#visualizer-panel::after {
+  content: "3D Scene Visualizer";
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #333;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 10;
+}
+
+#measurement-panel::after {
+  content: "AR Ruler - Distance Tool (RGBD Video)";
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #333;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 10;
+}
+
+#distance-display {
+  font-size: 2rem;
+  font-weight: bold;
+  text-align: center;
+  margin: 20px 0 10px 0;
+  padding: 15px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  border: 2px solid #333;
+}
+
+#status-display {
+  font-size: 1rem;
+  text-align: center;
+  margin: 0 0 20px 0;
+  padding: 8px;
+  background: #e8f4fd;
+  border-radius: 5px;
+  border: 1px solid #007bff;
+  color: #0056b3;
+}
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 320px; /* Center of left camera frame (640px / 2) */
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+#crosshair::before,
+#crosshair::after {
+  content: '';
+  position: absolute;
+  background: #ffffff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+#crosshair::before {
+  width: 2px;
+  height: 20px;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+#crosshair::after {
+  width: 20px;
+  height: 2px;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#control-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+#control-buttons button {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#place-marker {
+  background: #28a745;
+  color: white;
+}
+
+#place-marker:hover {
+  background: #218838;
+}
+
+#end-measurement {
+  background: #dc3545;
+  color: white;
+}
+
+#end-measurement:hover {
+  background: #c82333;
+}
+
+#reset-measurement {
+  background: #6c757d;
+  color: white;
+}
+
+#reset-measurement:hover {
+  background: #5a6268;
+}
+
+#draw-plane {
+  background: #007bff;
+  color: white;
+}
+
+#draw-plane:hover {
+  background: #0056b3;
+}
+
+#draw-plane.plane-active {
+  background: #28a745;
+}
+
+#draw-plane.plane-active:hover {
+  background: #218838;
+}
+
+canvas {
+  display: block;
+  width: 1280px;
+  height: 480px;
+}
+
+#splash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  opacity: 1;
+}
+
+#overlay {
+  position: absolute;
+  font-size: 16px;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#overlay::before {
+  position: absolute;
+  width: 100%;
+  white-space: pre-wrap;
+  content: "RGBD Video AR Ruler - Distance Measurement \A Using pre-recorded RGBD stereo video \A (v2_ruler_left_web.mp4 / v2_ruler_right_web.mp4)";
+  top: calc(50% + 50px);
+  text-align: center;
+  color: #949494;
+}
+
+#overlay button {
+  background: transparent;
+  border: 1px solid white;
+  border-radius: 4px;
+  color: white;
+  padding: 12px 18px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+@media screen and (max-device-width: 480px) and (orientation: landscape) {
+  #main-container { display: none; }
+  body::before {
+    content: "Rotate device to portrait mode.";
+    color: white;
+  }
+}
+
+@media screen and (max-device-width: 480px) and (orientation: portrait) {
+  #main-container { display: flex; }
+  body::before { content: none; }
+}

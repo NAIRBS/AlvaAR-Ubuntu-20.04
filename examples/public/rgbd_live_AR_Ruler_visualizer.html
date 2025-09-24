@@ -4,8 +4,8 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
   <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
-  <title>RGBD Video AR Ruler - Distance Measurement</title>
-  <link rel="stylesheet" href="./assets/AR_Ruler/rgbd_ar_ruler_styles.css">
+  <title>RGBD Live AR Ruler - Distance Measurement</title>
+  <link rel="stylesheet" href="./assets/AR_Ruler/rgbd_ar_ruler_live_styles.css">
 </head>
 <body>
   <div id="main-container">
@@ -40,7 +40,7 @@
   import { main } from './assets/AR_Ruler/rgbd_ar_ruler_main.js';
   
   // Start the application with dependencies
-  window.addEventListener('load', () => main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE));
+  window.addEventListener('load', () => main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, true)); // true = live mode
 </script>
 </body>
 </html>
