@@ -205,7 +205,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     arRulerSystem.initialize(visualizer, measurementUI, view.camera, alva);
     
     // Add coordinate system indicator at the origin
-    const originAxes = new THREE.AxesHelper(1.0);
+    const originAxes = new THREE.AxesHelper(1.5);
     originAxes.position.set(0, 0, 0);
     sceneVisualizer.scene.add(originAxes);
     
@@ -357,48 +357,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         console.log('Using monocular SLAM pose directly (no scaling)');
       }
       
-      // CRITICAL FIX: The monocular SLAM is initialized with ZERO distortion parameters
-      // while stereo triangulation uses correct distortion. This causes pose drift.
-      // We need to use a much more aggressive approach to prevent this mismatch.
-      
+      // Update last valid pose for tracking
       if (window.lastValidPose) {
-        const currentTranslation = new THREE.Vector3(pose[12], -pose[13], -pose[14]);
-        const lastTranslation = new THREE.Vector3(window.lastValidPose[12], -window.lastValidPose[13], -window.lastValidPose[14]);
-        const translationDiff = currentTranslation.distanceTo(lastTranslation);
-        
-        // Calculate rotation difference
-        const currentMatrix = new THREE.Matrix4().fromArray(pose);
-        const lastMatrix = new THREE.Matrix4().fromArray(window.lastValidPose);
-        const currentQuat = new THREE.Quaternion().setFromRotationMatrix(currentMatrix);
-        const lastQuat = new THREE.Quaternion().setFromRotationMatrix(lastMatrix);
-        const rotationDiff = Math.abs(currentQuat.dot(lastQuat));
-        
-        // EXTREMELY CONSERVATIVE CONSTRAINTS due to distortion mismatch
-        const maxTranslationPerFrame = 0.02; // 2cm per frame (extremely conservative)
-        const minRotationSimilarity = 0.995; // Almost no rotation changes allowed
-        
-        // If movement is too large, heavily constrain it
-        if (translationDiff > maxTranslationPerFrame || rotationDiff < minRotationSimilarity) {
-          console.warn(`DISTORTION MISMATCH: Unrealistic camera movement! Translation: ${translationDiff.toFixed(3)}m, Rotation similarity: ${rotationDiff.toFixed(3)}`);
-          
-          // Apply EXTREMELY strong smoothing to prevent wild movement
-          const smoothingFactor = 0.02; // 98% previous pose, 2% new pose
-          const constrainedPose = [...pose];
-          
-          // Constrain translation
-          constrainedPose[12] = window.lastValidPose[12] * (1 - smoothingFactor) + pose[12] * smoothingFactor;
-          constrainedPose[13] = window.lastValidPose[13] * (1 - smoothingFactor) + pose[13] * smoothingFactor;
-          constrainedPose[14] = window.lastValidPose[14] * (1 - smoothingFactor) + pose[14] * smoothingFactor;
-          
-          // Constrain rotation
-          for (let i = 0; i < 12; i++) {
-            constrainedPose[i] = window.lastValidPose[i] * (1 - smoothingFactor) + pose[i] * smoothingFactor;
-          }
-          
-          pose = constrainedPose;
-        }
-        
-        // Update last valid pose
         window.lastValidPose = [...pose];
       } else {
         // Initialize tracking variables
@@ -441,52 +401,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         console.log('Camera position:', view.camera.position);
       }
       
-      // CAMERA MOVEMENT CONSTRAINTS: Limit camera movement to realistic bounds
-      if (window.lastValidPose) {
-        const currentTranslation = new THREE.Vector3(pose[12], -pose[13], -pose[14]);
-        const lastTranslation = new THREE.Vector3(window.lastValidPose[12], -window.lastValidPose[13], -window.lastValidPose[14]);
-        const translationDiff = currentTranslation.distanceTo(lastTranslation);
-        
-        // Calculate rotation difference
-        const currentMatrix = new THREE.Matrix4().fromArray(pose);
-        const lastMatrix = new THREE.Matrix4().fromArray(window.lastValidPose);
-        const currentQuat = new THREE.Quaternion().setFromRotationMatrix(currentMatrix);
-        const lastQuat = new THREE.Quaternion().setFromRotationMatrix(lastMatrix);
-        const rotationDiff = Math.abs(currentQuat.dot(lastQuat));
-        
-        // REALISTIC CONSTRAINTS: Based on typical human camera movement
-        const maxTranslationPerFrame = 0.1; // 10cm per frame (conservative)
-        const minRotationSimilarity = 0.98; // Small rotation changes allowed
-        
-        // If movement is too large, constrain it
-        if (translationDiff > maxTranslationPerFrame || rotationDiff < minRotationSimilarity) {
-          console.warn(`Unrealistic camera movement detected! Translation: ${translationDiff.toFixed(3)}m, Rotation similarity: ${rotationDiff.toFixed(3)}`);
-          
-          // Apply smoothing to prevent wild movement
-          const smoothingFactor = 0.3; // 70% previous pose, 30% new pose
-          const constrainedPose = [...pose];
-          
-          // Constrain translation
-          constrainedPose[12] = window.lastValidPose[12] * (1 - smoothingFactor) + pose[12] * smoothingFactor;
-          constrainedPose[13] = window.lastValidPose[13] * (1 - smoothingFactor) + pose[13] * smoothingFactor;
-          constrainedPose[14] = window.lastValidPose[14] * (1 - smoothingFactor) + pose[14] * smoothingFactor;
-          
-          // Constrain rotation
-          for (let i = 0; i < 12; i++) {
-            constrainedPose[i] = window.lastValidPose[i] * (1 - smoothingFactor) + pose[i] * smoothingFactor;
-          }
-          
-          pose = constrainedPose;
-          // Re-apply the constrained pose to the camera
-          view.updateCameraPose(pose);
-        }
-        
-        // Update last valid pose
-        window.lastValidPose = [...pose];
-      } else {
-        // Initialize tracking variables
-        window.lastValidPose = [...pose];
-      }
+      // No pose clamping - use raw SLAM poses directly
       
       // Visualize 3D feature points
       visualizeFeaturePoints();

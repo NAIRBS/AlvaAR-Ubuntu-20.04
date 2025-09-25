@@ -281,7 +281,7 @@ class ARRulerSystem {
 
 ### Real-World Scale Reference
 - **Each grid square**: 1.5 meters × 1.5 meters
-- **RGB axes**: 25 cm long each
+- **RGB axes**: 1.5 meters long each
 - **Camera frustum depth**: 5 meters (from 1 cm to 5 meters)
 - **Feature points**: 2 cm diameter spheres
 - **Grid total area**: 150m × 150m = 22,500 square meters

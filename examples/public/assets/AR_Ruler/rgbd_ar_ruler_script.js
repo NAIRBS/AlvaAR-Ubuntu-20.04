@@ -86,7 +86,7 @@ export function drawPlaneOutlineOnFrame(ctx, plane, pose, cameraIntrinsics) {
   quaternion.set(-quaternion.x, quaternion.y, quaternion.z, quaternion.w);
   
   // Create a grid of points on the plane to project to 2D
-  const planeSize = 5; // 5x5 meter plane
+  const planeSize = 20; // 20x20 meter plane, but need to readjust in the future
   const gridResolution = 20; // 20x20 grid points
   const gridPoints = [];
   

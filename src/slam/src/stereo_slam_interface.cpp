@@ -463,6 +463,9 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         std::vector<cv::Point3d> stereo_3d_points;
         StereoSLAMUtils::triangulateStereoMatches(good_stereo_left, good_stereo_right, calib, stereo_3d_points);
         
+        std::cerr << "[StereoSLAM] DEBUG: Triangulated " << stereo_3d_points.size() 
+                  << " stereo 3D points from " << good_stereo_left.size() << " matches" << std::endl;
+        
         // Filter valid 3D points
         std::vector<cv::Point3d> valid_stereo_3d;
         std::vector<cv::Point2f> valid_stereo_left;
@@ -472,6 +475,9 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                 valid_stereo_left.push_back(good_stereo_left[i]);
             }
         }
+        
+        std::cerr << "[StereoSLAM] DEBUG: Filtered to " << valid_stereo_3d.size() 
+                  << " valid stereo 3D points" << std::endl;
 
         if (valid_stereo_3d.size() < 4) {
             // Not enough valid stereo 3D points
@@ -509,50 +515,110 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         double scale_factor = 1.0;
         std::vector<double> scale_ratios;
         
+        // --- FIXED: Proper Monocular Triangulation for Scale Recovery ---
+        // First, triangulate monocular 3D points from temporal stereo (previous + current frames)
+        std::vector<cv::Point3d> monocular_3d_points;
+        
+        // Build projection matrices for monocular triangulation
+        cv::Mat K_mono = (cv::Mat_<double>(3,3) << calib.left_.fx_, 0, calib.left_.cx_, 
+                                         0, calib.left_.fy_, calib.left_.cy_, 
+                                         0, 0, 1);
+        
+        // Previous frame: P1 = K_mono * [I|0] (identity pose)
+        cv::Mat P1 = K_mono * cv::Mat::eye(3, 4, CV_64F);
+        
+        // Current frame: P2 = K_mono * [R|t] (relative pose from essential matrix)
+        cv::Mat R_rel, t_rel;
+        cv::eigen2cv(Twc_mono.rotationMatrix(), R_rel);
+        cv::eigen2cv(Twc_mono.translation(), t_rel);
+        cv::Mat Rt;
+        cv::hconcat(R_rel, t_rel, Rt);
+        cv::Mat P2 = K_mono * Rt;
+        
+        // Triangulate monocular 3D points
+        cv::Mat points4d;
+        cv::triangulatePoints(P1, P2, common_prev, common_curr, points4d);
+        
+        // Convert to 3D points
+        monocular_3d_points.clear();
+        for (int i = 0; i < points4d.cols; ++i) {
+            cv::Mat col = points4d.col(i);
+            if (col.at<double>(3) != 0) { // Avoid division by zero
+                cv::Point3d pt(
+                    col.at<double>(0) / col.at<double>(3),
+                    col.at<double>(1) / col.at<double>(3),
+                    col.at<double>(2) / col.at<double>(3)
+                );
+                monocular_3d_points.push_back(pt);
+            } else {
+                monocular_3d_points.push_back(cv::Point3d(0, 0, 0)); // Invalid point
+            }
+        }
+        
+        std::cerr << "[StereoSLAM] DEBUG: Triangulated " << monocular_3d_points.size() 
+                  << " monocular 3D points for scale recovery" << std::endl;
+        
+        // Now compare distances between stereo and monocular 3D points
         for (size_t i = 0; i < common_prev.size(); ++i) {
             for (size_t j = i + 1; j < common_prev.size(); ++j) {
                 // Distance in stereo 3D points (metric)
                 cv::Point3d diff_stereo = common_stereo_3d[i] - common_stereo_3d[j];
                 double dist_stereo = cv::norm(diff_stereo);
                 
-                if (dist_stereo > 0.1) { // Avoid very close points
-                    // Distance in monocular reconstruction (up to scale)
-                    // Project points using monocular pose
-                    cv::Point3d prev_3d_mono(common_prev[i].x, common_prev[i].y, 1.0);
-                    cv::Point3d curr_3d_mono(common_curr[i].x, common_curr[i].y, 1.0);
+                // Distance in monocular 3D points (up to scale) - FIXED: Proper triangulation
+                if (i < monocular_3d_points.size() && j < monocular_3d_points.size()) {
+                    cv::Point3d diff_mono = monocular_3d_points[i] - monocular_3d_points[j];
+                    double dist_mono = cv::norm(diff_mono);
                     
-                    // Transform using monocular pose
-                    Eigen::Vector3d prev_vec(prev_3d_mono.x, prev_3d_mono.y, prev_3d_mono.z);
-                    Eigen::Vector3d curr_vec(curr_3d_mono.x, curr_3d_mono.y, curr_3d_mono.z);
-                    
-                    Eigen::Vector3d prev_world = Twc_mono * prev_vec;
-                    Eigen::Vector3d curr_world = Twc_mono * curr_vec;
-                    
-                    double dist_mono = (curr_world - prev_world).norm();
-                    
-                    if (dist_mono > 0.001) { // Avoid division by zero
-                        scale_ratios.push_back(dist_stereo / dist_mono);
+                    if (dist_stereo > 0.1 && dist_mono > 0.001) { // Avoid very close points and division by zero
+                        double ratio = dist_stereo / dist_mono;
+                        scale_ratios.push_back(ratio);
+                        
+                        std::cerr << "[StereoSLAM] DEBUG: Point pair " << i << "-" << j 
+                                  << ": stereo_dist=" << dist_stereo 
+                                  << ", mono_dist=" << dist_mono 
+                                  << ", ratio=" << ratio << std::endl;
                     }
                 }
             }
         }
 
+        std::cerr << "[StereoSLAM] DEBUG: Found " << scale_ratios.size() << " valid scale ratios" << std::endl;
+        
         if (scale_ratios.size() > 0) {
             // Use median scale ratio for robustness
             std::sort(scale_ratios.begin(), scale_ratios.end());
             scale_factor = scale_ratios[scale_ratios.size() / 2];
             
+            std::cerr << "[StereoSLAM] DEBUG: Scale ratios range: [" 
+                      << scale_ratios[0] << ", " << scale_ratios[scale_ratios.size()-1] << "]" << std::endl;
+            std::cerr << "[StereoSLAM] DEBUG: Median scale factor: " << scale_factor << std::endl;
+            
             // Ensure minimum scale factor to prevent extremely small translations
-            const double min_scale = 0.1;
-            if (scale_factor < min_scale) {
-                // std::cerr << "[StereoSLAM] WARNING: Scale factor " << scale_factor << " too small, clamping to " << min_scale << std::endl;
-                scale_factor = min_scale;
-            }
+            // const double min_scale = 0.1;
+            // if (scale_factor < min_scale) {
+            //     std::cerr << "[StereoSLAM] WARNING: Scale factor " << scale_factor 
+            //               << " too small, clamping to " << min_scale << std::endl;
+            //     scale_factor = min_scale;
+            // }
+        } else {
+            std::cerr << "[StereoSLAM] WARNING: No valid scale ratios found, using default scale factor 1.0" << std::endl;
         }
 
         // --- Step 4: Apply Scale and Set Initial Pose ---
+        std::cerr << "[StereoSLAM] DEBUG: Before scaling - translation: [" 
+                  << Twc_mono.translation().x() << ", " 
+                  << Twc_mono.translation().y() << ", " 
+                  << Twc_mono.translation().z() << "]" << std::endl;
+        
         current_pose = Twc_mono;
         current_pose.translation() *= scale_factor;
+        
+        std::cerr << "[StereoSLAM] DEBUG: After scaling - translation: [" 
+                  << current_pose.translation().x() << ", " 
+                  << current_pose.translation().y() << ", " 
+                  << current_pose.translation().z() << "]" << std::endl;
+        std::cerr << "[StereoSLAM] DEBUG: Applied scale factor: " << scale_factor << std::endl;
         
         // Keep metric scale (no normalization for stereo)
         
