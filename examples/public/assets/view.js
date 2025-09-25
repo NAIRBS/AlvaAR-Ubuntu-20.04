@@ -257,8 +257,8 @@ class ARSimpleMap
         this.controls.minDistance = 0.1;
         this.controls.maxDistance = 1000;
 
-        this.gridHelper = new THREE.GridHelper( 150, 100 );
-        this.gridHelper.position.y = -1;
+        this.gridHelper = new THREE.GridHelper( 5.0, 20 ); // 5.0 units total, 20 divisions = 0.25 units per square (25cm)
+        this.gridHelper.position.y = -0.10;
 
         this.axisHelper = new THREE.AxesHelper( 0.25 );
 

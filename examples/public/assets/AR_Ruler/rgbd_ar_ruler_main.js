@@ -204,8 +204,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     
     arRulerSystem.initialize(visualizer, measurementUI, view.camera, alva);
     
-    // Add coordinate system indicator at the origin
-    const originAxes = new THREE.AxesHelper(1.5);
+    // Add coordinate system indicator at the origin (1 unit = 25cm)
+    const originAxes = new THREE.AxesHelper(0.25);
     originAxes.position.set(0, 0, 0);
     sceneVisualizer.scene.add(originAxes);
     

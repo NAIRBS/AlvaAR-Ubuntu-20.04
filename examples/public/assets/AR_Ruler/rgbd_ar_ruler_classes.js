@@ -27,7 +27,7 @@ export class ARRulerVisualizer {
       this.scene.remove(this.startMarker);
     }
     
-    const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+    const geometry = new THREE.SphereGeometry(0.01, 16, 16); // 10cm radius for 25cm scale
     const material = new THREE.MeshBasicMaterial({ 
       color: 0x00ff00,
       transparent: true,
@@ -43,7 +43,7 @@ export class ARRulerVisualizer {
         this.sceneVisualizer.scene.remove(this.scene3DStartMarker);
       }
       
-      const scene3DGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+      const scene3DGeometry = new THREE.SphereGeometry(0.025, 16, 16); // 2.5cm radius for 25cm scale
       const scene3DMaterial = new THREE.MeshBasicMaterial({ 
         color: 0x00ff00,
         transparent: true,
@@ -64,7 +64,7 @@ export class ARRulerVisualizer {
       this.scene.remove(this.endMarker);
     }
     
-    const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+    const geometry = new THREE.SphereGeometry(0.01, 16, 16); // 10cm radius for 25cm scale
     const material = new THREE.MeshBasicMaterial({ 
       color: 0xff0000,
       transparent: true,
@@ -80,7 +80,7 @@ export class ARRulerVisualizer {
         this.sceneVisualizer.scene.remove(this.scene3DEndMarker);
       }
       
-      const scene3DGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+      const scene3DGeometry = new THREE.SphereGeometry(0.025, 16, 16); // 2.5cm radius for 25cm scale
       const scene3DMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xff0000,
         transparent: true,
@@ -176,7 +176,7 @@ export class ARRulerVisualizer {
     this.clearPlaneVisualization();
     
     // Create a large plane mesh to represent the detected plane
-    const planeSize = 10; // 10x10 unit plane
+    const planeSize = 0.25; // 25cm x 25cm plane (0.25m = 25cm)
     const geometry = new THREE.PlaneGeometry(planeSize, planeSize);
     
     // Create material with transparency for the plane
@@ -191,7 +191,7 @@ export class ARRulerVisualizer {
     this.planeMesh = new THREE.Mesh(geometry, material);
     
     // Create wireframe geometry for the internal grid
-    const wireframeGeometry = new THREE.PlaneGeometry(planeSize, planeSize, 20, 20); // 20x20 grid
+    const wireframeGeometry = new THREE.PlaneGeometry(planeSize, planeSize, 5, 5); // 5x5 grid for 25cm plane
     const wireframeMaterial = new THREE.LineBasicMaterial({
       color: 0x00ff00, // Green
       transparent: true,

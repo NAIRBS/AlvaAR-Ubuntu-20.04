@@ -2,7 +2,7 @@
 import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
 
 // Centralized monocular scale factor for AR ruler measurements
-export const MONOCULAR_SCALE_FACTOR = 50;
+export const MONOCULAR_SCALE_FACTOR = 1; //20 worked really well previously
 
 export async function waitForEmscriptenModule(ModuleInstance) {
   return new Promise(resolve => {
@@ -86,7 +86,7 @@ export function drawPlaneOutlineOnFrame(ctx, plane, pose, cameraIntrinsics) {
   quaternion.set(-quaternion.x, quaternion.y, quaternion.z, quaternion.w);
   
   // Create a grid of points on the plane to project to 2D
-  const planeSize = 20; // 20x20 meter plane, but need to readjust in the future
+  const planeSize = 0.25; // 25cm x 25cm plane (0.25m = 25cm)
   const gridResolution = 20; // 20x20 grid points
   const gridPoints = [];
   
