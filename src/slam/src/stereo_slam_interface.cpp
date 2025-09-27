@@ -622,10 +622,10 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                 frame->setTwc(current_pose);
                 
                 // Debug: Log scaled monocular pose
-                std::cerr << "[StereoSLAM] DEBUG: Monocular pose after scaling: [" 
-                          << current_pose.translation().x() << ", " 
-                          << current_pose.translation().y() << ", " 
-                          << current_pose.translation().z() << "] (scale factor: " << scale_factor << ")" << std::endl;
+                // std::cerr << "[StereoSLAM] DEBUG: Monocular pose after scaling: [" 
+                //           << current_pose.translation().x() << ", " 
+                //           << current_pose.translation().y() << ", " 
+                //           << current_pose.translation().z() << "] (scale factor: " << scale_factor << ")" << std::endl;
                 
                         // Debug: Log successful tracking
         //std::cerr << "[StereoSLAM] Monocular tracking successful (features: " << tracked_kps_left.size() << ")" << std::endl;

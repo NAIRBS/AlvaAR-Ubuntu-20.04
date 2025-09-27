@@ -600,8 +600,8 @@ export class ARRulerSystem {
     return { position, direction };
   }
 
-  // Raycast from camera center to find nearest 3D frame point or plane intersection
-  raycastToWorld(cameraPosition, cameraDirection, maxDistance = 10.0) {
+  // Calculate distance to nearest environment point along the crosshair direction
+  calculateNearestDistance(cameraPosition, cameraDirection, maxDistance = 1.0) {
     // Create a ray from camera position in camera direction
     const rayOrigin = cameraPosition.clone();
     const rayDirection = cameraDirection.clone();
@@ -610,97 +610,92 @@ export class ARRulerSystem {
     if (this.usePlaneMode && this.detectedPlane) {
       const planeIntersection = this.intersectRayWithPlane(rayOrigin, rayDirection, this.detectedPlane);
       if (planeIntersection) {
-        if (window.debugCounter % 30 === 0) {
-          console.log('Raycast to plane intersection:', planeIntersection);
-        }
-        return planeIntersection;
+        return cameraPosition.distanceTo(planeIntersection);
       }
     }
     
     // Fallback to 3D point raycasting
     // Get 3D frame points from SLAM system
     if (!this.alva || !this.alva.getFramePoints3D) {
-      // Fallback: point at fixed distance in front of camera
-      return cameraPosition.clone().add(cameraDirection.clone().multiplyScalar(2.0));
+      console.log('No alva or getFramePoints3D available');
+      return 2.0;
     }
     
     const points3D = this.alva.getFramePoints3D();
+    //console.log('Available 3D points:', points3D ? points3D.length : 'null');
+    
     if (!points3D || points3D.length === 0) {
-      // Fallback: point at fixed distance in front of camera
-      return cameraPosition.clone().add(cameraDirection.clone().multiplyScalar(2.0));
+      console.log('No 3D points available');
+      return 2.0;
     }
     
-    let bestPoint = null;
-    let bestRayDistance = Infinity;
-    let bestCameraDistance = Infinity;
+    let nearestDistance = Infinity;
     
-    // Find the 3D point that is closest to the ray line
+    // Find the nearest 3D point along the raycasted center direction
     for (const point3D of points3D) {
       // Apply the same coordinate transformation as used for feature points
-      const monocularScaleFactor = MONOCULAR_SCALE_FACTOR; // Match the scaling used in visualizeFeaturePoints
+      const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
       const transformedPoint = new THREE.Vector3(
         point3D.x * monocularScaleFactor, 
         -point3D.y * monocularScaleFactor, 
         -point3D.z * monocularScaleFactor
       );
       
-      // Calculate distance from point to ray
-      const pointToRayOrigin = transformedPoint.clone().sub(rayOrigin);
-      const projectionLength = pointToRayOrigin.dot(rayDirection);
-      
-      // Only consider points in front of the camera
-      if (projectionLength <= 0.1) continue; // At least 10cm in front
-      
-      // Calculate the closest point on the ray
-      const closestPointOnRay = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
-      const distanceToRay = transformedPoint.distanceTo(closestPointOnRay);
-      
-      // Check if point is within max distance
-      if (projectionLength > maxDistance) continue;
-      
       // Calculate distance from camera to this point
       const distanceFromCamera = transformedPoint.distanceTo(rayOrigin);
       
-      // Selection criteria:
-      // 1. Primary: Closest perpendicular distance to ray line
-      // 2. Secondary: If multiple points have similar ray distance, choose closest to camera
-      const rayDistanceThreshold = 0.1; // 10cm threshold for "on the ray"
+      // Only consider points in front of the camera and within max distance
+      const pointToRayOrigin = transformedPoint.clone().sub(rayOrigin);
+      const projectionLength = pointToRayOrigin.dot(rayDirection);
       
-      let isBetter = false;
-      
-      if (distanceToRay < bestRayDistance - rayDistanceThreshold) {
-        // This point is significantly closer to the ray line
-        isBetter = true;
-      } else if (Math.abs(distanceToRay - bestRayDistance) <= rayDistanceThreshold) {
-        // This point is approximately the same distance from the ray line
-        // Choose the one closer to the camera
-        if (distanceFromCamera < bestCameraDistance) {
-          isBetter = true;
+      // Check if point is in front of camera and within max distance
+      if (projectionLength > 0.1 && distanceFromCamera < maxDistance) {
+        // Calculate the perpendicular distance from the point to the ray line
+        // This gives us how close the point is to the raycasted center direction
+        const closestPointOnRay = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
+        const perpendicularDistance = transformedPoint.distanceTo(closestPointOnRay);
+        
+        // Only consider points that are close to the ray line (within tolerance)
+        const rayTolerance = 0.1; // 10cm tolerance for ray alignment
+        if (perpendicularDistance < rayTolerance) {
+          // This point is along the raycasted center direction, check if it's the nearest
+          if (distanceFromCamera < nearestDistance) {
+            nearestDistance = distanceFromCamera;
+            //console.log('Found point along raycasted center:', distanceFromCamera, 'perpendicular:', perpendicularDistance);
+          }
         }
       }
-      
-      if (isBetter) {
-        bestPoint = transformedPoint;
-        bestRayDistance = distanceToRay;
-        bestCameraDistance = distanceFromCamera;
-      }
     }
     
-    // Return the best point if found, otherwise fallback
-    if (bestPoint && bestRayDistance < MONOCULAR_SCALE_FACTOR) { // Within scale factor distance of ray line
-      if (window.debugCounter % 30 === 0) {
-        console.log('Raycast to best 3D point:', bestPoint, 
-                   'ray distance:', bestRayDistance.toFixed(3), 
-                   'camera distance:', bestCameraDistance.toFixed(3));
-      }
-      return bestPoint;
+    // Return the nearest distance if found, otherwise fallback
+    if (nearestDistance !== Infinity) {
+      //console.log('Found nearest distance:', nearestDistance);
+      return nearestDistance;
     }
     
-    // Fallback: point at fixed distance in front of camera
+    // Fallback: return fixed distance
+    console.log('No suitable points found, using fallback distance');
+    return 2.0;
+  }
+
+  // Raycast from camera center to find nearest 3D frame point within 10cm tolerance
+  raycastToWorld(cameraPosition, cameraDirection, maxDistance = 10.0) {
+    // Use the same distance calculation as the UI display
+    const nearestDistance = this.calculateNearestDistance(cameraPosition, cameraDirection, maxDistance);
+    
+    // Create a ray from camera position in camera direction
+    const rayOrigin = cameraPosition.clone();
+    const rayDirection = cameraDirection.clone();
+    
+    // Place the marker at the same distance that's shown in the UI
+    const intersectionPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(nearestDistance));
+    
     if (window.debugCounter % 30 === 0) {
-      console.log('No suitable 3D points found, using fallback at 2m distance');
+      console.log('Raycast intersection using UI distance:', intersectionPoint, 
+                 'distance:', nearestDistance.toFixed(3));
     }
-    return rayOrigin.clone().add(rayDirection.clone().multiplyScalar(2.0));
+    
+    return intersectionPoint;
   }
 
   // Place marker at world point under crosshair
@@ -755,22 +750,25 @@ export class ARRulerSystem {
   }
 
   resetMeasurement() {
+    console.log('🔄 Resetting AR Ruler measurement...');
+    
     this.startPoint = null;
     this.endPoint = null;
     this.measurementMode = 'placing';
     
+    // Clear all visual elements
     if (this.visualizer) {
-      this.visualizer.clearMarkers();
+      this.visualizer.clearAll();
     }
     
+    // Reset UI
     if (this.ui) {
       this.ui.updateDistance(0);
       this.ui.updateStatus('Place start marker');
+      this.ui.updateNearestDistance(0);
     }
     
-    if (window.debugCounter % 30 === 0) {
-      console.log('Measurement reset');
-    }
+    console.log('✅ AR Ruler measurement reset complete');
   }
 
   updateMeasurement(currentPose) {

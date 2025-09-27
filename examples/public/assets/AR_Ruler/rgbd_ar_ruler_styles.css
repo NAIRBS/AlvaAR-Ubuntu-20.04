@@ -23,12 +23,13 @@ html, body {
 
 #container {
   position: relative;
-  width: 1280px;
   height: 480px;
   overflow: hidden;
   line-height: 0;
   border: 2px solid #333;
   box-shadow: 0 0 10px #000;
+  display: none; /* Hidden initially */
+  /* Width will be set dynamically by JavaScript */
 }
 
 #container > * {
@@ -37,9 +38,9 @@ html, body {
   user-select: none;
   top: 0;
   left: 0;
-  width: 1280px;
   height: 480px;
   animation: fadeIn 1.2s;
+  /* Width will be set dynamically by JavaScript */
 }
 
 #measurement-panel {
@@ -49,7 +50,7 @@ html, body {
   box-shadow: 0 0 10px #000;
   background: #fff;
   position: relative;
-  display: flex;
+  display: none; /* Hidden initially */
   flex-direction: column;
   padding: 20px;
 }
@@ -61,6 +62,7 @@ html, body {
   box-shadow: 0 0 10px #000;
   background: #fff;
   position: relative;
+  display: none; /* Hidden initially */
 }
 
 #visualizer-panel::after {
@@ -94,6 +96,20 @@ html, body {
   background: #f0f0f0;
   border-radius: 10px;
   border: 2px solid #333;
+}
+
+#nearest-distance-display {
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-align: center;
+  margin: 0 0 10px 0;
+  padding: 10px;
+  background: #e8f5e8;
+  border-radius: 8px;
+  border: 2px solid #28a745;
+  color: #155724;
+  display: block; /* Ensure it's visible */
+  min-height: 40px; /* Ensure it has some height */
 }
 
 #status-display {
@@ -205,8 +221,8 @@ html, body {
 
 canvas {
   display: block;
-  width: 1280px;
   height: 480px;
+  /* Width will be set dynamically by JavaScript */
 }
 
 #splash {

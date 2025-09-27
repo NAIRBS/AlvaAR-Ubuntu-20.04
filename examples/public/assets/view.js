@@ -212,7 +212,7 @@ class ARSimpleView
         scale *= 0.25;
 
         const cube = new THREE.Mesh( new THREE.BoxGeometry( scale, scale, scale ), new THREE.MeshNormalMaterial( { flatShading: true } ) );
-        cube.position.z = scale * 0.5;
+        cube.position.z = scale * 0.1; // Moved closer to origin (reduced from 0.5 to 0.1)
 
         plane.add( cube );
         plane.custom = true;

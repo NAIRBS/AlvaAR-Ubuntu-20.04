@@ -19,8 +19,53 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   // Live mode variables
   let latestFrameBitmapLeft = null;
   let latestFrameBitmapRight = null;
+  let showRightCamera = false;
   let image_width = 640;
   let image_height = 480;
+
+  // WebSocket error display functions
+  function showWebSocketError(message) {
+    // Remove any existing error message
+    hideWebSocketError();
+    
+    // Create error message element
+    const errorDiv = document.createElement('div');
+    errorDiv.id = 'websocket-error';
+    errorDiv.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #dc3545;
+      color: white;
+      padding: 15px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 10000;
+      font-family: 'Helvetica', sans-serif;
+      font-size: 14px;
+      font-weight: bold;
+      text-align: center;
+      max-width: 500px;
+      word-wrap: break-word;
+    `;
+    errorDiv.textContent = message;
+    
+    // Add to document
+    document.body.appendChild(errorDiv);
+    
+    // Auto-hide after 10 seconds
+    setTimeout(() => {
+      hideWebSocketError();
+    }, 10000);
+  }
+
+  function hideWebSocketError() {
+    const existingError = document.getElementById('websocket-error');
+    if (existingError) {
+      existingError.remove();
+    }
+  }
 
   // WebSocket connection for live camera feed
   function connectWebSocketFrameStream(callback) {
@@ -28,12 +73,16 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     ws.binaryType = "arraybuffer";
     ws.onopen = () => {
       console.log("✅ Connected to WebSocket video stream");
+      // Hide any previous error messages
+      hideWebSocketError();
     };
     ws.onerror = err => {
       console.error("❌ WebSocket error:", err);
+      showWebSocketError("Failed to connect to live camera stream. Please ensure the camera server is running on localhost:8765");
     };
     ws.onclose = () => {
       console.warn("⚠️ WebSocket connection closed");
+      showWebSocketError("Live camera connection lost. Attempting to reconnect...");
     };
     ws.onmessage = async event => {
       try {
@@ -157,15 +206,39 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       mediaRight.el.play();
       mediaRight.el.loop = true;
       
-      // Add event listeners for video loop to refresh visualizer
+      // Only listen to left video loop detection to avoid double resets
       mediaLeft.el.addEventListener('ended', () => {
-        console.log('Video looped - refreshing visualizer');
+        console.log('Video looped (ended event) - refreshing visualizer');
         refreshVisualizer();
       });
       
-      mediaRight.el.addEventListener('ended', () => {
-        console.log('Video looped - refreshing visualizer');
-        refreshVisualizer();
+      // Alternative: Listen for 'timeupdate' to detect when video restarts
+      let lastTimeLeft = 0;
+      let loopDetectedLeft = false;
+      
+      mediaLeft.el.addEventListener('timeupdate', () => {
+        const currentTime = mediaLeft.el.currentTime;
+        // Detect if video jumped back to start (loop occurred)
+        if (currentTime < lastTimeLeft && lastTimeLeft > 1.0 && !loopDetectedLeft) {
+          console.log('Video looped (timeupdate detection) - refreshing visualizer');
+          loopDetectedLeft = true;
+          refreshVisualizer();
+          // Reset flag after a delay
+          setTimeout(() => { loopDetectedLeft = false; }, 1000);
+        }
+        lastTimeLeft = currentTime;
+      });
+      
+      // Additional: Listen for 'seeking' event which might indicate loop
+      mediaLeft.el.addEventListener('seeking', () => {
+        console.log('Video seeking detected - might be loop');
+        // Add a small delay to check if it's actually a loop
+        setTimeout(() => {
+          if (mediaLeft.el.currentTime < 0.5) {
+            console.log('Video looped (seeking detection) - refreshing visualizer');
+            refreshVisualizer();
+          }
+        }, 100);
       });
     }
 
@@ -202,7 +275,48 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     visualizer = new ARRulerVisualizer(view.scene, sceneVisualizer);
     measurementUI = new MeasurementUI();
     
-    arRulerSystem.initialize(visualizer, measurementUI, view.camera, alva);
+    // Add toggle button for right camera visibility
+    const toggleRightCameraBtn = document.getElementById('toggle-right-camera');
+    if (toggleRightCameraBtn) {
+      // Set initial button text based on default state (hidden)
+      toggleRightCameraBtn.textContent = 'Show Right Camera';
+      
+      toggleRightCameraBtn.addEventListener('click', () => {
+        showRightCamera = !showRightCamera;
+        toggleRightCameraBtn.textContent = showRightCamera ? 'Hide Right Camera' : 'Show Right Camera';
+      });
+    }
+    
+     // Test: Ensure the nearest distance display is visible
+     const nearestDisplay = document.getElementById('nearest-distance-display');
+     if (nearestDisplay) {
+       nearestDisplay.textContent = 'Nearest: Ready...';
+       nearestDisplay.style.display = 'block';
+       nearestDisplay.style.visibility = 'visible';
+       console.log('✅ Found nearest-distance-display element during initialization');
+     } else {
+       console.error('❌ nearest-distance-display element NOT FOUND during initialization!');
+       // Let's check what's actually in the DOM
+       const measurementPanel = document.getElementById('measurement-panel');
+       if (measurementPanel) {
+         console.log('Measurement panel HTML:', measurementPanel.innerHTML);
+       } else {
+         console.error('measurement-panel not found either!');
+       }
+     }
+     
+     // Test: Check again after a delay to see if element appears
+     setTimeout(() => {
+       const delayedTest = document.getElementById('nearest-distance-display');
+       if (delayedTest) {
+         console.log('✅ Found nearest-distance-display element after delay');
+         delayedTest.textContent = 'Nearest: Found after delay!';
+       } else {
+         console.error('❌ nearest-distance-display element still not found after delay!');
+       }
+     }, 1000);
+     
+     arRulerSystem.initialize(visualizer, measurementUI, view.camera, alva);
     
     // Add coordinate system indicator at the origin (1 unit = 25cm)
     const originAxes = new THREE.AxesHelper(0.25);
@@ -284,25 +398,30 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     function refreshVisualizer() {
       if (!sceneVisualizer) return;
       
-      // Clear all feature points and dispose of Three.js resources
+      console.log('Video looped - resetting everything...');
+      
+      // Clear all feature points
       if (sceneVisualizer.featurePoints) {
         sceneVisualizer.featurePoints.forEach(point => {
           sceneVisualizer.scene.remove(point);
-          // Dispose of geometry and material to prevent memory leaks
           if (point.geometry) point.geometry.dispose();
           if (point.material) point.material.dispose();
         });
         sceneVisualizer.featurePoints = [];
       }
       
-      // Reset camera helper visibility
+      // Reset camera helper
       if (sceneVisualizer.camHelper) {
         sceneVisualizer.camHelper.visible = false;
+        sceneVisualizer.camHelper.position.set(0, 0, 0);
+        sceneVisualizer.camHelper.quaternion.set(0, 0, 0, 1);
       }
       
-      // Reset the view (this will hide any created objects)
+      // Reset view
       if (view) {
         view.reset();
+        view.camera.position.set(0, 0, 0);
+        view.camera.quaternion.set(0, 0, 0, 1);
       }
       
       // Reset SLAM system
@@ -310,16 +429,31 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         alva.reset();
       }
       
-      // Reset first frame flag
-      firstFrame = true;
+      // Reset AR Ruler system
+      if (arRulerSystem) {
+        arRulerSystem.resetMeasurement();
+        arRulerSystem.startPoint = null;
+        arRulerSystem.endPoint = null;
+        arRulerSystem.measurementMode = 'idle';
+        arRulerSystem.detectedPlane = null;
+        arRulerSystem.usePlaneMode = false;
+        arRulerSystem.planePoints = [];
+      }
       
-      // Clear pose tracking variables to prevent memory leaks
+      // Reset UI
+      if (measurementUI) {
+        measurementUI.reset();
+      }
+      
+      // Clear pose tracking
+      firstFrame = true;
+      latestPose = null;
       window.lastValidPose = null;
       window.poseHistory = [];
       window.debugCounter = 0;
       window.featureDebugCounter = 0;
       
-      // Dispose of shared geometry and material
+      // Dispose of shared resources
       if (sceneVisualizer.featureGeometry) {
         sceneVisualizer.featureGeometry.dispose();
         sceneVisualizer.featureGeometry = null;
@@ -329,12 +463,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         sceneVisualizer.featureMaterial = null;
       }
       
-      // Reset AR Ruler system
-      if (arRulerSystem) {
-        arRulerSystem.resetMeasurement();
-      }
-      
-      console.log('Visualizer refreshed - all objects cleared and memory cleaned');
+      console.log('Reset complete');
     }
 
     // Function to update the 3D scene visualizer - simplified like stereo visualizer
@@ -393,7 +522,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       // Debug: Log detailed coordinate information (only occasionally to prevent memory leaks)
       if (window.debugCounter === undefined) window.debugCounter = 0;
       window.debugCounter++;
-      if (window.debugCounter % 60 === 0) { // Log every 60 frames (2 seconds at 30fps)
+      if (window.debugCounter % 150 === 0) { // Log every 150 frames (5 seconds at 30fps)
         console.log('=== COORDINATE DEBUG (Frame ' + window.debugCounter + ') ===');
         if (pose.length === 16) {
           console.log('Pose matrix translation (raw):', {x: pose[12], y: pose[13], z: pose[14]});
@@ -473,10 +602,14 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                const spacing = 0;
        const boxWidth = image_width;
        const boxHeight = image_height;
-       const width = image_width * 2 + spacing;
+       const width = showRightCamera ? (image_width * 2 + spacing) : image_width;
        const height = image_height;
        $canvas.width = width;
        $canvas.height = height;
+       
+       // Update container width to match canvas
+       $container.style.width = width + 'px';
+       
       const ctx = $canvas.getContext('2d');
       ctx.clearRect(0, 0, $canvas.width, $canvas.height);
 
@@ -519,13 +652,31 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           stats.start('video');
           
           if (isLiveMode) {
-            // Live mode: Draw bitmaps directly
+            // Live mode: Draw bitmaps directly - always draw left camera at original size
             ctx.drawImage(latestFrameBitmapLeft, 0, 0, image_width, image_height);
-            ctx.drawImage(latestFrameBitmapRight, image_width + spacing, 0, image_width, image_height);
+            if (showRightCamera) {
+              ctx.drawImage(latestFrameBitmapRight, image_width + spacing, 0, image_width, image_height);
+            }
           } else {
-            // Video mode: Draw ImageData
+            // Video mode: Draw ImageData - always draw left camera at original size
             ctx.putImageData(frameLeft, 0, 0);
-            ctx.putImageData(frameRight, image_width + spacing, 0);
+            if (showRightCamera) {
+              ctx.putImageData(frameRight, image_width + spacing, 0);
+            }
+          }
+          
+          // Add camera labels
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(0, 0, 170, 25);
+          ctx.fillStyle = "white";
+          ctx.font = "16px Helvetica";
+          ctx.fillText("Left Camera (Stereo)", 10, 18);
+
+          if (showRightCamera) {
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.fillRect(image_width + spacing, 0, 120, 25);
+            ctx.fillStyle = "white";
+            ctx.fillText("Right Camera", image_width + spacing + 10, 18);
           }
           
           stats.stop('video');
@@ -548,6 +699,43 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
             
             // Update AR Ruler measurement
             arRulerSystem.updateMeasurement(pose);
+            
+            // Calculate and display nearest distance
+            const { position, direction } = arRulerSystem.getCameraTransform(pose);
+            //console.log('Calculating nearest distance for position:', position, 'direction:', direction);
+            const nearestDistance = arRulerSystem.calculateNearestDistance(position, direction);
+            //console.log('Calculated nearest distance:', nearestDistance);
+            
+             // Always update the display directly
+             let nearestDisplay = document.getElementById('nearest-distance-display');
+             if (nearestDisplay) {
+               nearestDisplay.textContent = `Nearest: ${nearestDistance.toFixed(3)} meters`;
+             } else {
+               console.error('nearest-distance-display element not found! Creating it...');
+               // Try to create the element
+               const measurementPanel = document.getElementById('measurement-panel');
+               if (measurementPanel) {
+                 const newElement = document.createElement('div');
+                 newElement.id = 'nearest-distance-display';
+                 newElement.textContent = `Nearest: ${nearestDistance.toFixed(3)} meters (CREATED)`;
+                 newElement.style.cssText = 'font-size: 1.2rem; font-weight: bold; text-align: center; margin: 0 0 10px 0; padding: 10px; background: #e8f5e8; border-radius: 8px; border: 2px solid #28a745; color: #155724; display: block; min-height: 40px;';
+                 
+                 // Insert after distance-display
+                 const distanceDisplay = document.getElementById('distance-display');
+                 if (distanceDisplay && distanceDisplay.nextSibling) {
+                   measurementPanel.insertBefore(newElement, distanceDisplay.nextSibling);
+                 } else {
+                   measurementPanel.appendChild(newElement);
+                 }
+                 console.log('Created nearest-distance-display element');
+               } else {
+                 console.error('measurement-panel not found either!');
+               }
+             }
+            
+            if (measurementUI) {
+              measurementUI.updateNearestDistance(nearestDistance);
+            }
             
             // Update 3D point count in status
             if (arRulerSystem && arRulerSystem.alva && arRulerSystem.alva.getFramePoints3D) {
@@ -681,6 +869,22 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     $splash.remove();
     $start.addEventListener('click', () => {
       $overlay.remove();
+      
+      // Show the container and panels when application starts
+      const container = document.getElementById('container');
+      const measurementPanel = document.getElementById('measurement-panel');
+      const visualizerPanel = document.getElementById('visualizer-panel');
+      
+      if (container) {
+        container.style.display = 'block';
+      }
+      if (measurementPanel) {
+        measurementPanel.style.display = 'flex';
+      }
+      if (visualizerPanel) {
+        visualizerPanel.style.display = 'block';
+      }
+      
       demoStream();
     }, { once: true });
   }, splashFadeTime);

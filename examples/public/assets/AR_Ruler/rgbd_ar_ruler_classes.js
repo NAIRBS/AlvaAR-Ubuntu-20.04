@@ -35,6 +35,7 @@ export class ARRulerVisualizer {
     });
     this.startMarker = new THREE.Mesh(geometry, material);
     this.startMarker.position.copy(position);
+    this.startMarker.userData = { isMarker: true, isARElement: true, type: 'start' };
     this.scene.add(this.startMarker);
     
     // Also create marker in 3D scene visualizer
@@ -51,6 +52,7 @@ export class ARRulerVisualizer {
       });
       this.scene3DStartMarker = new THREE.Mesh(scene3DGeometry, scene3DMaterial);
       this.scene3DStartMarker.position.copy(position);
+      this.scene3DStartMarker.userData = { isMarker: true, isARElement: true, type: 'start' };
       this.sceneVisualizer.scene.add(this.scene3DStartMarker);
     }
     
@@ -72,6 +74,7 @@ export class ARRulerVisualizer {
     });
     this.endMarker = new THREE.Mesh(geometry, material);
     this.endMarker.position.copy(position);
+    this.endMarker.userData = { isMarker: true, isARElement: true, type: 'end' };
     this.scene.add(this.endMarker);
     
     // Also create marker in 3D scene visualizer
@@ -88,6 +91,7 @@ export class ARRulerVisualizer {
       });
       this.scene3DEndMarker = new THREE.Mesh(scene3DGeometry, scene3DMaterial);
       this.scene3DEndMarker.position.copy(position);
+      this.scene3DEndMarker.userData = { isMarker: true, isARElement: true, type: 'end' };
       this.sceneVisualizer.scene.add(this.scene3DEndMarker);
     }
     
@@ -109,6 +113,7 @@ export class ARRulerVisualizer {
       opacity: 0.9
     });
     this.measurementLine = new THREE.Line(geometry, material);
+    this.measurementLine.userData = { isMeasurement: true, isARElement: true, type: 'line' };
     this.scene.add(this.measurementLine);
     
     // Also create line in 3D scene visualizer
@@ -125,6 +130,7 @@ export class ARRulerVisualizer {
         opacity: 0.8
       });
       this.scene3DMeasurementLine = new THREE.Line(scene3DGeometry, scene3DMaterial);
+      this.scene3DMeasurementLine.userData = { isMeasurement: true, isARElement: true, type: 'line' };
       this.sceneVisualizer.scene.add(this.scene3DMeasurementLine);
     }
     
@@ -168,6 +174,19 @@ export class ARRulerVisualizer {
         this.scene3DMeasurementLine = null;
       }
     }
+  }
+
+  // Clear all visual elements (markers, planes, etc.)
+  clearAll() {
+    console.log('🧹 Clearing all AR Ruler visual elements...');
+    
+    // Clear markers
+    this.clearMarkers();
+    
+    // Clear plane visualization
+    this.clearPlaneVisualization();
+    
+    console.log('✅ All AR Ruler visual elements cleared');
   }
 
   // Create plane visualization
@@ -308,6 +327,7 @@ export class ARRulerVisualizer {
 export class MeasurementUI {
   constructor() {
     this.distanceDisplay = document.getElementById('distance-display');
+    this.nearestDistanceDisplay = document.getElementById('nearest-distance-display');
     this.statusDisplay = document.getElementById('status-display');
     this.startButton = document.getElementById('place-marker');
     this.endButton = document.getElementById('end-measurement');
@@ -363,6 +383,18 @@ export class MeasurementUI {
     this.distanceDisplay.textContent = `${distance.toFixed(3)} meters`;
   }
 
+  updateNearestDistance(distance) {
+    if (this.nearestDistanceDisplay) {
+      this.nearestDistanceDisplay.textContent = `Nearest: ${distance.toFixed(3)} meters`;
+    } else {
+      // Fallback: try to find the element again
+      this.nearestDistanceDisplay = document.getElementById('nearest-distance-display');
+      if (this.nearestDistanceDisplay) {
+        this.nearestDistanceDisplay.textContent = `Nearest: ${distance.toFixed(3)} meters`;
+      }
+    }
+  }
+
   updateStatus(status) {
     if (this.statusDisplay) {
       this.statusDisplay.textContent = status;
@@ -389,4 +421,12 @@ export class MeasurementUI {
     this.drawPlaneButton.style.background = '#007bff';
     this.drawPlaneButton.classList.remove('plane-active');
   }
+
+  reset() {
+    this.updateDistance(0);
+    this.updateStatus('Place start marker');
+    this.updateNearestDistance(0);
+    this.resetDrawPlaneButton();
+  }
 }
+
