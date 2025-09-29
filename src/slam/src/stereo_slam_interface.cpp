@@ -28,8 +28,11 @@ static std::string g_stereo_calib_yaml_string;
 // Persistent buffer for last left image keypoints for JS visualization
 static std::vector<cv::Point2f> lastStereoLeftKeypoints;
 
-// Persistent buffer for last triangulated 3D points for plane detection
+// Persistent buffer for last triangulated 3D points for plane detection (camera coordinates)
 static std::vector<cv::Point3d> lastStereo3DPoints;
+
+// Buffer for world coordinates output to JavaScript
+static std::vector<cv::Point3d> world_points_buffer;
 
 // Add temporal buffer for hybrid initialization
 static cv::Mat prev_left_gray_for_init;
@@ -647,20 +650,35 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     Utils::toPoseArray(current_pose, out);
     //std::cerr << "[StereoSLAM] DEBUG: Pose output completed successfully" << std::endl;
 
+    // --- Transform 3D points from camera coordinates to world coordinates ---
+
+    world_points_buffer.clear();
+    world_points_buffer.reserve(lastStereo3DPoints.size());
+    
+    for (const auto& pt : lastStereo3DPoints) {
+        // Transform point from camera coordinates to world coordinates
+        // current_pose is the camera's pose in world coordinates (Twc)
+        // To transform camera points to world: pt_world = Twc * pt_camera
+        Eigen::Vector3d pt_camera(pt.x, pt.y, pt.z);
+        Eigen::Vector3d pt_world = current_pose * pt_camera;
+        world_points_buffer.emplace_back(pt_world.x(), pt_world.y(), pt_world.z());
+    }
+
+
     // Debug: Print pose values
     // std::cerr << "[StereoSLAM] Pose output: t=[" << t.x() << ", " << t.y() << ", " << t.z() 
     //           << "], q=[" << q.x() << ", " << q.y() << ", " << q.z() << ", " << q.w() << "]" << std::endl;
 
     // Profiling output
-    auto t_end = high_resolution_clock::now();
-    // std::cerr << "[PROFILE] TOTAL: " << duration_cast<milliseconds>(t_end-t_start).count() << " ms\n";
+    auto t_end = std::chrono::high_resolution_clock::now();
+    // std::cerr << "[PROFILE] TOTAL: " << std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count() << " ms\n";
 
     //std::cerr << "[StereoSLAM] DEBUG: Function returning 1 (success)" << std::endl;
     return 1;
 }
 
-// Expose feature points to JS for visualization
-extern "C" int getStereoFramePoints(int pointsPtr) {
+// Expose 2D keypoints to JS for visualization
+extern "C" int getStereoFrameKeypoints(int pointsPtr) {
     int n = std::min((int)lastStereoLeftKeypoints.size(), 4096);
     int* data = reinterpret_cast<int*>(pointsPtr);
     for (int i = 0, j = 0; i < n; ++i) {
@@ -670,14 +688,26 @@ extern "C" int getStereoFramePoints(int pointsPtr) {
     return n;
 }
 
-// Expose 3D points to JS for plane detection
-extern "C" int getStereoFramePoints3D(int points3DPtr) {
+// Expose 3D points in camera coordinates to JS for left frame display
+extern "C" int getStereoFramePoints(int points3DPtr) {
     int n = std::min((int)lastStereo3DPoints.size(), 1000); // Limit for performance
     float* data = reinterpret_cast<float*>(points3DPtr);
     for (int i = 0; i < n; ++i) {
         data[i * 3] = (float)lastStereo3DPoints[i].x;
         data[i * 3 + 1] = (float)lastStereo3DPoints[i].y;
         data[i * 3 + 2] = (float)lastStereo3DPoints[i].z;
+    }
+    return n;
+}
+
+// Expose 3D points in world coordinates to JS for plane detection and right visualizer
+extern "C" int getStereoFramePoints3D(int points3DPtr) {
+    int n = std::min((int)world_points_buffer.size(), 1000); // Limit for performance
+    float* data = reinterpret_cast<float*>(points3DPtr);
+    for (int i = 0; i < n; ++i) {
+        data[i * 3] = (float)world_points_buffer[i].x;
+        data[i * 3 + 1] = (float)world_points_buffer[i].y;
+        data[i * 3 + 2] = (float)world_points_buffer[i].z;
     }
     return n;
 } 

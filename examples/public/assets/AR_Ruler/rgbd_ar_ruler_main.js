@@ -156,15 +156,30 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           ModuleInstance.reset();
         }
       },
-      getFramePoints() {
-        if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+      getFrameKeypoints() {
+        if (typeof ModuleInstance.getStereoFrameKeypoints === 'function') {
           const n = 4096;
           const buf = ModuleInstance._malloc(n * 4 * 2); // 2 ints per point
-          const numPoints = ModuleInstance.getStereoFramePoints(buf);
+          const numPoints = ModuleInstance.getStereoFrameKeypoints(buf);
           const arr = new Int32Array(ModuleInstance.HEAP32.buffer, buf, numPoints * 2);
           const result = [];
           for (let i = 0; i < numPoints; ++i) {
             result.push({ x: arr[i * 2], y: arr[i * 2 + 1] });
+          }
+          ModuleInstance._free(buf);
+          return result;
+        }
+        return [];
+      },
+      getFramePoints() {
+        if (typeof ModuleInstance.getStereoFramePoints === 'function') {
+          const n = 4096;
+          const buf = ModuleInstance._malloc(n * 4 * 3); // 3 floats per 3D point
+          const numPoints = ModuleInstance.getStereoFramePoints(buf);
+          const arr = new Float32Array(ModuleInstance.HEAPF32.buffer, buf, numPoints * 3);
+          const result = [];
+          for (let i = 0; i < numPoints; ++i) {
+            result.push(new THREE.Vector3(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]));
           }
           ModuleInstance._free(buf);
           return result;
@@ -753,8 +768,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           }
 
           // Draw 3D stereo frame points projected onto left camera
-          if (pose && alva.getFramePoints3D) {
-            const points3D = alva.getFramePoints3D();
+          if (pose && alva.getFramePoints) {
+            const points3D = alva.getFramePoints();
             if (points3D && points3D.length > 0) {
               // Use parsed calibration data from YAML file
               let fx = 525, fy = 525, cx = 320, cy = 240; // Default fallback values
@@ -788,35 +803,110 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
               }
               
               for (const point3D of points3D) {
-                // Project 3D point to 2D image coordinates using pinhole camera model
-                // Note: points3D are in stereo coordinate system, need to project to left camera
-                const x = (point3D.x * fx / point3D.z) + cx;
-                const y = (point3D.y * fy / point3D.z) + cy;
+                // Use 3D points directly as they are already in camera coordinates from getStereoFramePoints
+                // No transformation needed since C++ backend sends camera coordinates
                 
-                // Only draw points that are in front of camera and within image bounds
-                if (point3D.z > 0.1 && x >= 0 && x < 640 && y >= 0 && y < 480) {
-                  // Color based on depth (closer = brighter, farther = darker)
-                  const depth = Math.min(point3D.z / 5.0, 1.0); // Normalize depth to 0-1 (5m max)
-                  const intensity = Math.floor(255 * (1.0 - depth)); // Closer points are brighter
-                  
-                  // Use different colors for different depth ranges
-                  if (point3D.z < 1.0) {
-                    ctx.fillStyle = `rgb(255, ${intensity}, ${intensity})`; // Red for very close
-                  } else if (point3D.z < 2.0) {
-                    ctx.fillStyle = `rgb(${intensity}, 255, ${intensity})`; // Green for close
-                  } else {
-                    ctx.fillStyle = `rgb(${intensity}, ${intensity}, 255)`; // Blue for far
+                // Project camera coordinates to 2D image coordinates using pinhole camera model
+                if (point3D.z > 0.1) { // Only points in front of camera
+                  const x = (point3D.x * fx / point3D.z) + cx;
+                  const y = (point3D.y * fy / point3D.z) + cy;
+                
+                  // Only draw points that are in front of camera and within image bounds
+                  if (x >= 0 && x < 640 && y >= 0 && y < 480) {
+                    // Color based on depth (closer = brighter, farther = darker)
+                    const depth = Math.min(point3D.z / 5.0, 1.0); // Use camera Z coordinate for depth
+                    const intensity = Math.floor(255 * (1.0 - depth)); // Closer points are brighter
+                    
+                    // Use different colors for different depth ranges
+                    if (point3D.z < 1.0) {
+                      ctx.fillStyle = `rgb(255, ${intensity}, ${intensity})`; // Red for very close
+                    } else if (point3D.z < 2.0) {
+                      ctx.fillStyle = `rgb(${intensity}, 255, ${intensity})`; // Green for close
+                    } else {
+                      ctx.fillStyle = `rgb(${intensity}, ${intensity}, 255)`; // Blue for far
+                    }
+                    
+                    // Size based on depth (closer = larger)
+                    const size = Math.max(1, Math.floor(4 * (1.0 - depth)));
+                    ctx.fillRect(x - size/2, y - size/2, size, size);
                   }
-                  
-                  // Size based on depth (closer = larger)
-                  const size = Math.max(1, Math.floor(4 * (1.0 - depth)));
-                  ctx.fillRect(x - size/2, y - size/2, size, size);
+                }
+              }
+              
+              // Render start and end markers in left frame
+              if (arRulerSystem && pose) {
+                // Get camera transform from pose for world-to-camera transformation
+                const { position: cameraPosition, direction: cameraDirection } = arRulerSystem.getCameraTransform(pose);
+
+                // Create camera quaternion from pose matrix with AlvaAR coordinate transformation
+                const rotationMatrix = new THREE.Matrix4().fromArray(pose);
+                const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+                cameraQuaternion.set(-cameraQuaternion.x, cameraQuaternion.y, cameraQuaternion.z, cameraQuaternion.w);
+
+                // Create world-to-camera transformation matrix (inverse of camera pose)
+                const cameraInverseMatrix = new THREE.Matrix4();
+                cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
+
+                // Render start marker if it exists
+                if (arRulerSystem.startPoint) {
+                  // Transform world coordinates to camera coordinates (reverse of C++ backend)
+                  // C++ backend does: pt_world = current_pose * pt_camera
+                  // Frontend does: pt_camera = current_pose.inverse() * pt_world
+                  const worldPoint = new THREE.Vector3(arRulerSystem.startPoint.x, arRulerSystem.startPoint.y, arRulerSystem.startPoint.z);
+                  const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+
+                  // Project camera coordinates to 2D image coordinates using pinhole camera model
+                  if (cameraPoint.z > 0.1) { // Only points in front of camera
+                    const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
+                    const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
+                    
+                    // Only draw if within image bounds
+                    if (x >= 0 && x < 640 && y >= 0 && y < 480) {
+                      // Draw green circle for start marker
+                      ctx.fillStyle = '#00ff00';
+                      ctx.beginPath();
+                      ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                      ctx.fill();
+                      
+                      // Draw white border
+                      ctx.strokeStyle = '#ffffff';
+                      ctx.lineWidth = 2;
+                      ctx.stroke();
+                    }
+                  }
+                }
+
+                // Render end marker if it exists
+                if (arRulerSystem.endPoint) {
+                  // Transform world coordinates to camera coordinates
+                  const worldPoint = new THREE.Vector3(arRulerSystem.endPoint.x, arRulerSystem.endPoint.y, arRulerSystem.endPoint.z);
+                  const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+
+                  // Project camera coordinates to 2D image coordinates using pinhole camera model
+                  if (cameraPoint.z > 0.1) { // Only points in front of camera
+                    const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
+                    const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
+                    
+                    // Only draw if within image bounds
+                    if (x >= 0 && x < 640 && y >= 0 && y < 480) {
+                      // Draw red circle for end marker
+                      ctx.fillStyle = '#ff0000';
+                      ctx.beginPath();
+                      ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                      ctx.fill();
+                      
+                      // Draw white border
+                      ctx.strokeStyle = '#ffffff';
+                      ctx.lineWidth = 2;
+                      ctx.stroke();
+                    }
+                  }
                 }
               }
             }
           } else {
             // Fallback to original 2D keypoints if 3D points not available
-            const dots = alva.getFramePoints();
+            const dots = alva.getFrameKeypoints();
             for (const p of dots) {
               ctx.fillStyle = 'white';
               ctx.fillRect(p.x, p.y, 2, 2);

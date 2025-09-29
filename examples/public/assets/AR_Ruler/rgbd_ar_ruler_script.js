@@ -656,7 +656,7 @@ export class ARRulerSystem {
         const perpendicularDistance = transformedPoint.distanceTo(closestPointOnRay);
         
         // Only consider points that are close to the ray line (within tolerance)
-        const rayTolerance = 0.1; // 10cm tolerance for ray alignment
+        const rayTolerance = 0.03; // 3cm tolerance for ray alignment
         if (perpendicularDistance < rayTolerance) {
           // This point is along the raycasted center direction, check if it's the nearest
           if (distanceFromCamera < nearestDistance) {
