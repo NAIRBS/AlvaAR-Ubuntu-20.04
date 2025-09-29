@@ -23,6 +23,37 @@
 // Minimal OV2SLAM-style Stereo SLAM Interface for Browser
 // Implements the pipeline directly in the interface function for browser performance
 
+// ===== CONFIGURABLE THRESHOLDS =====
+// Epipolar and stereo matching thresholds
+static const double EPIPOLAR_THRESHOLD = 10.0;          // Essential matrix RANSAC threshold (pixels) - MAXIMUM RELAXED
+                                                         // ORIGINAL: 1.0 (very strict)
+static const double OPTICAL_FLOW_ERROR = 0.05;           // Optical flow error threshold - MAXIMUM RELAXED
+                                                         // ORIGINAL: 0.001 (extremely strict)
+static const double FEATURE_QUALITY = 0.001;            // Corner detection quality threshold
+static const double SUBPIXEL_ACCURACY = 0.01;           // Sub-pixel refinement accuracy (pixels)
+static const double Y_DIFF_THRESHOLD = 15.0;            // Y-coordinate difference for stereo matching (pixels) - MAXIMUM RELAXED
+                                                         // ORIGINAL: 5.0 (moderate)
+static const double Y_DIFF_STRICT = 8.0;                // Stricter Y-difference for scale recovery (pixels) - MAXIMUM RELAXED
+                                                         // ORIGINAL: 2.0 (strict)
+static const double MIN_DEPTH = 0.05;                    // Minimum valid depth (meters) - RELAXED
+                                                         // ORIGINAL: 0.1 (10cm minimum)
+static const double MAX_DEPTH = 200.0;                   // Maximum valid depth (meters) - RELAXED
+                                                         // ORIGINAL: 100.0 (100m maximum)
+static const int MIN_STEREO_MATCHES = 1;                 // Minimum stereo matches for triangulation - MAXIMUM RELAXED
+                                                         // ORIGINAL: 2 (minimum)
+static const int MIN_STEREO_MATCHES_STRICT = 2;          // Minimum stereo matches for scale recovery - MAXIMUM RELAXED
+                                                         // ORIGINAL: 4 (moderate)
+static const int MIN_3D_POINTS = 1;                      // Minimum 3D points after filtering - MAXIMUM RELAXED
+                                                         // ORIGINAL: 2 (minimum)
+static const int MIN_3D_POINTS_WARNING = 5;              // Warning threshold for 3D points - RELAXED
+                                                         // ORIGINAL: 10 (strict warning)
+static const int LOST_TRACKING_THRESHOLD = 15;           // Frames before declaring tracking lost - RELAXED
+                                                         // ORIGINAL: 10 (moderate)
+static const double MIN_SCALE_FACTOR = 0.00001;         // Minimum scale factor - RELAXED
+                                                         // ORIGINAL: 0.0001 (very permissive)
+static const double MAX_SCALE_FACTOR = 100.0;            // Maximum scale factor - RELAXED
+                                                         // ORIGINAL: 50.0 (reasonable maximum)
+
 static std::string g_stereo_calib_yaml_string;
 
 // Persistent buffer for last left image keypoints for JS visualization
@@ -121,7 +152,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     int grid_cell_size = 40; // Same as monocular frameMaxCellSize
     int grid_max_per_cell = 2; // originally 1, lower back to 1 if there are performance issues
     int grid_min_per_cell = 1; // originally 1
-    double grid_quality = 0.001; // originally 0.001
+    double grid_quality = FEATURE_QUALITY;
     int grid_num_cells_x = (width + grid_cell_size - 1) / grid_cell_size;
     int grid_num_cells_y = (height + grid_cell_size - 1) / grid_cell_size;
     ////////////////////////////////////////////////////////////////////////
@@ -153,7 +184,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
             }
         }
         if (!detected_pts.empty()) {
-            cv::cornerSubPix(left_gray, detected_pts, cv::Size(3,3), cv::Size(-1,-1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.01));
+            cv::cornerSubPix(left_gray, detected_pts, cv::Size(3,3), cv::Size(-1,-1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, SUBPIXEL_ACCURACY));
             for (size_t i = 0; i < detected_pts.size(); ++i) {
                 tracked_kps_left[i].pt = detected_pts[i];
             }
@@ -169,7 +200,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         std::vector<uchar> status_fwd;
         std::vector<float> err_fwd;
         cv::calcOpticalFlowPyrLK(prev_left_gray, left_gray, prev_pts, curr_pts, status_fwd, err_fwd,
-            cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), 0, 0.001);
+            cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, SUBPIXEL_ACCURACY), 0, OPTICAL_FLOW_ERROR);
         // Outlier rejection
         std::vector<cv::KeyPoint> new_tracked_kps_left;
         cv::Mat new_tracked_desc_left;
@@ -218,7 +249,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
             }
         }
         if (!new_pts.empty()) {
-            cv::cornerSubPix(left_gray, new_pts, cv::Size(3,3), cv::Size(-1,-1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.01));
+            cv::cornerSubPix(left_gray, new_pts, cv::Size(3,3), cv::Size(-1,-1), cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, SUBPIXEL_ACCURACY));
             for (size_t i = 0; i < new_pts.size(); ++i) {
                 new_kps[i].pt = new_pts[i];
             }
@@ -280,11 +311,11 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     std::vector<uchar> status;
     std::vector<float> err;
     cv::calcOpticalFlowPyrLK(left_gray, right_gray, pts_left, pts_right_tracked, status, err,
-        cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), 0, 0.001);
+        cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, SUBPIXEL_ACCURACY), 0, OPTICAL_FLOW_ERROR);
     
 
     
-    const float max_y_diff = 5.0f; // Back to reasonable for rectified images
+    const float max_y_diff = Y_DIFF_THRESHOLD; // Back to reasonable for rectified images
     std::vector<cv::Point2f> good_pts_left, good_pts_right;
     int y_filtered = 0;
     for (size_t i = 0; i < pts_left.size(); ++i) {
@@ -303,7 +334,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
 
     // LOG: Number of good stereo matches (may slow browser if too frequent)
     // std::cerr << "[StereoSLAM] Total left keypoints: " << tracked_kps_left.size() << ", Good stereo matches: " << good_pts_left.size() << std::endl;
-    if (good_pts_left.size() < 2) {
+    if (good_pts_left.size() < MIN_STEREO_MATCHES) {
         //std::cerr << "[StereoSLAM] DEBUG: Not enough good stereo matches: " << good_pts_left.size() << ", returning 0" << std::endl;
         return 0;
     }
@@ -330,10 +361,10 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         }
     }
 
-    if (filtered_points3d.size() < 10) {
-        // std::cerr << "[StereoSLAM] WARNING: Fewer than 10 good 3D points for pose estimation. Pose may be unreliable." << std::endl;
+    if (filtered_points3d.size() < MIN_3D_POINTS_WARNING) {
+        // std::cerr << "[StereoSLAM] WARNING: Fewer than " << MIN_3D_POINTS_WARNING << " good 3D points for pose estimation. Pose may be unreliable." << std::endl;
     }
-    if (filtered_points3d.size() < 2) {
+    if (filtered_points3d.size() < MIN_3D_POINTS) {
         //std::cerr << "[StereoSLAM] DEBUG: Not enough 3D points after filtering: " << filtered_points3d.size() << ", returning 0" << std::endl;
         return 0;
     }
@@ -347,7 +378,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
     static Sophus::SE3d initial_pose = Sophus::SE3d(); // Store initial pose for drift correction
     Sophus::SE3d current_pose;
     static int lost_tracking_count = 0;
-    const int lost_tracking_threshold = 10; // frames
+    const int lost_tracking_threshold = LOST_TRACKING_THRESHOLD; // frames
     bool tracking_lost = false;
     double curr_timestamp = 0.0; // You may want to use a real timestamp if available
 
@@ -363,7 +394,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         frame = std::make_shared<Frame>(std::make_shared<CameraCalibration>(calib.left_), 60);
         mapManager = std::make_shared<MapManager>(state, frame, nullptr);
         mapper = std::make_shared<Mapper>(state, mapManager, frame);
-        featureTracker = std::make_shared<FeatureTracker>(30, 0.01f); // adjust as needed
+        featureTracker = std::make_shared<FeatureTracker>(30, FEATURE_QUALITY); // adjust as needed
         visualFrontend = std::make_unique<VisualFrontend>(state, frame, mapManager, mapper, featureTracker);
         visual_frontend_initialized = true;
     }
@@ -391,7 +422,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         std::vector<uchar> status;
         std::vector<float> err;
         cv::calcOpticalFlowPyrLK(prev_left_gray_for_init, left_gray, prev_left_kps_for_init, tracked_curr_kps, status, err,
-            cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), 0, 0.001);
+            cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, SUBPIXEL_ACCURACY), 0, OPTICAL_FLOW_ERROR);
         
         // Filter good temporal matches
         std::vector<cv::Point2f> good_prev_kps, good_curr_kps;
@@ -416,7 +447,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                                          0, calib.left_.fy_, calib.left_.cy_, 
                                          0, 0, 1);
         cv::Mat E = cv::findEssentialMat(good_prev_kps, good_curr_kps, 
-            K, cv::RANSAC, 0.999, 1.0);
+            K, cv::RANSAC, 0.999, EPIPOLAR_THRESHOLD);
         
         if (E.empty()) {
             // Essential matrix computation failed
@@ -457,18 +488,18 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         std::vector<uchar> stereo_status;
         std::vector<float> stereo_err;
         cv::calcOpticalFlowPyrLK(left_gray, right_gray, curr_left_pts, curr_right_pts, stereo_status, stereo_err,
-            cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), 0, 0.001);
+            cv::Size(9,9), 3, cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, SUBPIXEL_ACCURACY), 0, OPTICAL_FLOW_ERROR);
         
         // Filter good stereo matches
         std::vector<cv::Point2f> good_stereo_left, good_stereo_right;
         for (size_t i = 0; i < stereo_status.size(); ++i) {
-            if (stereo_status[i] && std::abs(curr_left_pts[i].y - curr_right_pts[i].y) < 2.0f) {
+            if (stereo_status[i] && std::abs(curr_left_pts[i].y - curr_right_pts[i].y) < Y_DIFF_STRICT) {
                 good_stereo_left.push_back(curr_left_pts[i]);
                 good_stereo_right.push_back(curr_right_pts[i]);
             }
         }
 
-        if (good_stereo_left.size() < 4) {
+        if (good_stereo_left.size() < MIN_STEREO_MATCHES_STRICT) {
             // Not enough stereo matches
             //std::cerr << "[StereoSLAM] DEBUG: Not enough stereo matches: " << good_stereo_left.size() << ", returning 0" << std::endl;
             prev_left_gray_for_init = left_gray.clone();
@@ -487,7 +518,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         std::vector<cv::Point3d> valid_stereo_3d;
         std::vector<cv::Point2f> valid_stereo_left;
         for (size_t i = 0; i < stereo_3d_points.size(); ++i) {
-            if (stereo_3d_points[i].z > 0.1 && stereo_3d_points[i].z < 100.0) {
+            if (stereo_3d_points[i].z > MIN_DEPTH && stereo_3d_points[i].z < MAX_DEPTH) {
                 valid_stereo_3d.push_back(stereo_3d_points[i]);
                 valid_stereo_left.push_back(good_stereo_left[i]);
             }
@@ -496,7 +527,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         std::cerr << "[StereoSLAM] DEBUG: Filtered to " << valid_stereo_3d.size() 
                   << " valid stereo 3D points" << std::endl;
 
-        if (valid_stereo_3d.size() < 4) {
+        if (valid_stereo_3d.size() < MIN_STEREO_MATCHES_STRICT) {
             // Not enough valid stereo 3D points
             //std::cerr << "[StereoSLAM] DEBUG: Not enough valid stereo 3D points: " << valid_stereo_3d.size() << ", returning 0" << std::endl;
             prev_left_gray_for_init = left_gray.clone();
@@ -528,8 +559,8 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         }
         
         // Apply scale factor bounds to prevent extremely small or large values
-        const double min_scale = 0.0001;  // Allow smaller minimum
-        const double max_scale = 50.0;  // Add maximum scale factor to prevent extremely large values
+        const double min_scale = MIN_SCALE_FACTOR;  // Allow smaller minimum
+        const double max_scale = MAX_SCALE_FACTOR;  // Add maximum scale factor to prevent extremely large values
         if (scale_factor < min_scale) {
             std::cerr << "[StereoSLAM] WARNING: Scale factor " << scale_factor 
                       << " too small, clamping to " << min_scale << std::endl;

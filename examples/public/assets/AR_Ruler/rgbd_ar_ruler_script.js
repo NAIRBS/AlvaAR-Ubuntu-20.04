@@ -656,7 +656,7 @@ export class ARRulerSystem {
         const perpendicularDistance = transformedPoint.distanceTo(closestPointOnRay);
         
         // Only consider points that are close to the ray line (within tolerance)
-        const rayTolerance = 0.03; // 3cm tolerance for ray alignment
+        const rayTolerance = 0.05; // 5cm tolerance for ray alignment
         if (perpendicularDistance < rayTolerance) {
           // This point is along the raycasted center direction, check if it's the nearest
           if (distanceFromCamera < nearestDistance) {
@@ -732,6 +732,11 @@ export class ARRulerSystem {
     
     if (this.visualizer) {
       this.visualizer.createEndMarker(this.endPoint);
+      // Update measurement line when end marker is placed/moved
+      if (this.startPoint) {
+        const distance = this.calculateDistance(this.startPoint, this.endPoint);
+        this.visualizer.updateMeasurementLine(this.startPoint, this.endPoint, distance);
+      }
     }
     
     const finalDistance = this.calculateDistance(this.startPoint, this.endPoint)/MONOCULAR_SCALE_FACTOR; //divide by scale factor to get reverse scaled distance

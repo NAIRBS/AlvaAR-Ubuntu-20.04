@@ -312,6 +312,67 @@ quaternion.set(-quaternion.x, quaternion.y, quaternion.z, quaternion.w);
 - **Marker Placement**: `getCameraTransform()` function
 - **Scene Visualizer**: `updateSceneVisualizer()` function
 
+## Coordinate Systems
+
+### Left Frame Visualizer
+- **Coordinate System**: **Camera Coordinates** (2D projection)
+- **Data Source**: `getStereoFramePoints()` from C++ backend
+- **Transformation**: None (points already in camera coordinates)
+- **Projection**: Camera coordinates → 2D image coordinates using pinhole camera model
+- **Display Elements**:
+  - Triangulated 3D points (colored dots)
+  - Start/end markers (transformed from world coordinates)
+  - Measurement line (via Three.js scene projection)
+  - Crosshair overlay (screen coordinates)
+
+### Right Visualizer Panel
+- **Coordinate System**: **World Coordinates** (3D scene)
+- **Data Source**: `getStereoFramePoints3D()` from C++ backend
+- **Transformation**: None (points already in world coordinates)
+- **Display Elements**:
+  - Triangulated 3D points (orange spheres)
+  - Start/end markers (3D spheres)
+  - Measurement line (3D line)
+  - Camera frustum
+  - Grid helper
+
+### Start/End Markers and Measurement Line
+
+#### Computation and Storage
+- **Coordinate System**: **World Coordinates**
+- **Placement Logic**: 
+  - Camera position/direction in world coordinates
+  - Raycast to nearest triangulated point (world coordinates)
+  - Marker position stored in world coordinates
+- **Distance Calculation**: Euclidean distance between world coordinate points
+
+#### Display in Left Frame
+- **Coordinate System**: **Camera Coordinates** (2D projection)
+- **Transformation**: World → Camera coordinates using pose inverse
+  ```javascript
+  // C++ Backend: pt_world = current_pose * pt_camera
+  // Frontend: pt_camera = current_pose.inverse() * pt_world
+  const cameraInverseMatrix = new THREE.Matrix4();
+  cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
+  const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+  ```
+- **Projection**: Camera coordinates → 2D image coordinates using pinhole camera model
+- **Visual**: Colored circles (green for start, red for end)
+
+#### Display in Right Visualizer
+- **Coordinate System**: **World Coordinates** (3D scene)
+- **Transformation**: None (markers already in world coordinates)
+- **Visual**: 3D spheres and lines in Three.js scene
+
+### Coordinate System Summary
+
+| Component | Computation | Left Frame Display | Right Visualizer Display |
+|-----------|-------------|-------------------|-------------------------|
+| **Triangulated Points** | Camera coordinates | Camera coordinates (direct) | World coordinates (direct) |
+| **Start/End Markers** | World coordinates | Camera coordinates (transformed) | World coordinates (direct) |
+| **Measurement Line** | World coordinates | Three.js scene projection | World coordinates (direct) |
+| **Camera Pose** | World coordinates | Used for transformation | Used for camera positioning |
+
 ## Key Features
 - **RANSAC Plane Detection**: Improves measurement accuracy by detecting and projecting onto measurement surfaces
 - **Real-time Distance**: Continuous distance calculation with visual feedback
@@ -319,3 +380,4 @@ quaternion.set(-quaternion.x, quaternion.y, quaternion.z, quaternion.w);
 - **Measurement Line**: Dynamic line showing measurement path
 - **Error Handling**: Robust handling of SLAM tracking loss and measurement errors
 - **Coordinate System Consistency**: Proper SLAM-to-Three.js transformation applied throughout
+- **Dual Coordinate Display**: Markers displayed in both camera (left frame) and world (right visualizer) coordinates

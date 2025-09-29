@@ -905,12 +905,9 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
               }
             }
           } else {
-            // Fallback to original 2D keypoints if 3D points not available
-            const dots = alva.getFrameKeypoints();
-            for (const p of dots) {
-              ctx.fillStyle = 'white';
-              ctx.fillRect(p.x, p.y, 2, 2);
-            }
+            // No fallback - only show triangulated 3D points
+            // If no 3D points available, left frame shows only the camera feed
+            console.log('No triangulated 3D points available - showing camera feed only');
           }
 
           // Draw detected plane outline on left frame if plane mode is enabled
