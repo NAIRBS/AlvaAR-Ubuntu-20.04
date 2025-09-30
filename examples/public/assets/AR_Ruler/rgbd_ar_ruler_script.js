@@ -679,7 +679,7 @@ export class ARRulerSystem {
   }
 
   // Raycast from camera center to find nearest 3D frame point within 10cm tolerance
-  raycastToWorld(cameraPosition, cameraDirection, maxDistance = 10.0) {
+  raycastToWorld(cameraPosition, cameraDirection, maxDistance = 10.0, markerDistanceForward = 0.5) {
     // Use the same distance calculation as the UI display
     const nearestDistance = this.calculateNearestDistance(cameraPosition, cameraDirection, maxDistance);
     
@@ -687,28 +687,31 @@ export class ARRulerSystem {
     const rayOrigin = cameraPosition.clone();
     const rayDirection = cameraDirection.clone();
     
-    // Place the marker at the same distance that's shown in the UI
-    const intersectionPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(nearestDistance));
+    // Place the marker at the raycasted point, then move it further along the ray by the specified distance
+    const raycastPoint = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(nearestDistance));
+    const markerPosition = raycastPoint.clone().add(rayDirection.clone().multiplyScalar(markerDistanceForward));
     
     if (window.debugCounter % 30 === 0) {
-      console.log('Raycast intersection using UI distance:', intersectionPoint, 
-                 'distance:', nearestDistance.toFixed(3));
+      console.log('Raycast point:', raycastPoint, 'distance:', nearestDistance.toFixed(3));
+      console.log('Marker position (forward by', markerDistanceForward.toFixed(1), 'm):', markerPosition);
     }
     
-    return intersectionPoint;
+    return markerPosition;
   }
 
   // Place marker at world point under crosshair
   placeStartMarker(currentPose) {
     const { position, direction } = this.getCameraTransform(currentPose);
-    this.startPoint = this.raycastToWorld(position, direction);
+        const markerDistance = this.ui ? this.ui.getMarkerDistance() : 0.0;
+    this.startPoint = this.raycastToWorld(position, direction, 10.0, markerDistance);
     this.measurementMode = 'measuring';
     
     // Debug logging (reduced frequency to prevent memory leaks)
     if (window.debugCounter % 30 === 0) {
       console.log('Camera position:', position);
       console.log('Camera direction:', direction);
-      console.log('Raycast result:', this.startPoint);
+      console.log('Marker distance forward from raycast:', markerDistance);
+      console.log('Start marker placed at:', this.startPoint);
     }
     
     if (this.visualizer) {
@@ -718,16 +721,13 @@ export class ARRulerSystem {
     if (this.ui) {
       this.ui.updateStatus('Move camera to end point');
     }
-    
-    if (window.debugCounter % 30 === 0) {
-      console.log('Start marker placed at:', this.startPoint);
-    }
   }
 
   // Place end marker at world point under crosshair
   placeEndMarker(currentPose) {
     const { position, direction } = this.getCameraTransform(currentPose);
-    this.endPoint = this.raycastToWorld(position, direction);
+        const markerDistance = this.ui ? this.ui.getMarkerDistance() : 0.0;
+    this.endPoint = this.raycastToWorld(position, direction, 10.0, markerDistance);
     this.measurementMode = 'complete';
     
     if (this.visualizer) {
@@ -748,10 +748,44 @@ export class ARRulerSystem {
     
     if (window.debugCounter % 30 === 0) {
       console.log('End marker placed at:', this.endPoint);
+      console.log('Marker distance forward from raycast:', markerDistance);
       console.log('Final measurement:', finalDistance.toFixed(3), 'meters');
     }
     
     return finalDistance;
+  }
+
+  // Update marker positions when slider value changes
+  updateMarkerPositions(currentPose) {
+    if (!currentPose) return;
+    
+    const { position, direction } = this.getCameraTransform(currentPose);
+        const markerDistance = this.ui ? this.ui.getMarkerDistance() : 0.0;
+    
+    if (this.startPoint) {
+      this.startPoint = this.raycastToWorld(position, direction, 10.0, markerDistance);
+      if (this.visualizer) {
+        this.visualizer.createStartMarker(this.startPoint);
+      }
+    }
+    
+    if (this.endPoint) {
+      this.endPoint = this.raycastToWorld(position, direction, 10.0, markerDistance);
+      if (this.visualizer) {
+        this.visualizer.createEndMarker(this.endPoint);
+        // Update measurement line
+        if (this.startPoint) {
+          const distance = this.calculateDistance(this.startPoint, this.endPoint);
+          this.visualizer.updateMeasurementLine(this.startPoint, this.endPoint, distance);
+          
+          // Update UI with new distance
+          const finalDistance = distance / MONOCULAR_SCALE_FACTOR;
+          if (this.ui) {
+            this.ui.updateDistance(finalDistance);
+          }
+        }
+      }
+    }
   }
 
   resetMeasurement() {

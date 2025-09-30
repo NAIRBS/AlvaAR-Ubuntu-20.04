@@ -340,6 +340,35 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     originAxes.position.set(0, 0, 0);
     sceneVisualizer.scene.add(originAxes);
     
+    // Add camera frustum visualization for pose debugging
+    let cameraFrustum = null;
+    let cameraMarker = null;
+    function createCameraFrustum(position, rotation, fov = 60, aspect = 480/320, near = 0.1, far = 10) {
+      // Remove existing frustum
+      if (cameraFrustum) {
+        sceneVisualizer.scene.remove(cameraFrustum);
+      }
+      
+      // Remove existing camera marker
+      if (cameraMarker) {
+        sceneVisualizer.scene.remove(cameraMarker);
+      }
+      
+      // Camera frustum removed - only showing position marker
+      
+      // Add camera position marker (smaller dot)
+      const cameraMarkerGeometry = new THREE.SphereGeometry(0.005, 8, 8); // Much smaller: 0.005 instead of 0.02
+      const cameraMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      cameraMarker = new THREE.Mesh(cameraMarkerGeometry, cameraMarkerMaterial);
+      cameraMarker.position.copy(position);
+      sceneVisualizer.scene.add(cameraMarker);
+      
+      return cameraFrustum;
+    }
+    
+    // Store the createCameraFrustum function globally for use in render loop
+    window.createCameraFrustum = createCameraFrustum;
+    
     // Add ambient lighting to make objects more visible
     const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
     sceneVisualizer.scene.add(ambientLight);
@@ -395,6 +424,13 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     
     measurementUI.onClearPlaneRequested = () => {
       arRulerSystem.clearPlane();
+    };
+    
+    measurementUI.onMarkerDistanceChanged = (distance) => {
+      // Update existing markers when slider value changes
+      if (latestPose) {
+        arRulerSystem.updateMarkerPositions(latestPose);
+      }
     };
 
     stats = Stats;
@@ -849,6 +885,21 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 // Create world-to-camera transformation matrix (inverse of camera pose)
                 const cameraInverseMatrix = new THREE.Matrix4();
                 cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
+
+                // Update 3D camera frustum visualization for pose debugging
+                if (window.createCameraFrustum) {
+                  window.createCameraFrustum(cameraPosition, cameraQuaternion);
+                }
+                
+                // Debug: Display camera pose information
+                if (window.debugCounter % 60 === 0) { // Log every 60 frames (about once per second)
+                  console.log('=== CAMERA POSE DEBUG ===');
+                  console.log('Camera position (world):', cameraPosition);
+                  console.log('Camera direction (world):', cameraDirection);
+                  console.log('Camera intrinsics (cx, cy):', cx, cy);
+                  console.log('Pose matrix translation:', pose[12], pose[13], pose[14]);
+                  console.log('Camera quaternion:', cameraQuaternion);
+                }
 
                 // Render start marker if it exists
                 if (arRulerSystem.startPoint) {

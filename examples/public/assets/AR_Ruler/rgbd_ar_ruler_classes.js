@@ -334,11 +334,16 @@ export class MeasurementUI {
     this.resetButton = document.getElementById('reset-measurement');
     this.drawPlaneButton = document.getElementById('draw-plane');
     
+    // Marker distance slider elements
+    this.markerDistanceSlider = document.getElementById('marker-distance-slider');
+    this.markerDistanceValue = document.getElementById('marker-distance-value');
+    
     this.onStartMarkerRequested = null;
     this.onEndMeasurementRequested = null;
     this.onResetRequested = null;
     this.onDrawPlaneRequested = null;
     this.onClearPlaneRequested = null;
+    this.onMarkerDistanceChanged = null;
     
     this.setupEventListeners();
   }
@@ -377,6 +382,18 @@ export class MeasurementUI {
         }
       }
     });
+    
+    // Marker distance slider event listener
+    if (this.markerDistanceSlider) {
+      this.markerDistanceSlider.addEventListener('input', (event) => {
+        const distance = parseFloat(event.target.value);
+        this.updateMarkerDistanceValue(distance);
+        
+        if (this.onMarkerDistanceChanged) {
+          this.onMarkerDistanceChanged(distance);
+        }
+      });
+    }
   }
 
   updateDistance(distance) {
@@ -400,6 +417,16 @@ export class MeasurementUI {
       this.statusDisplay.textContent = status;
     }
   }
+
+  updateMarkerDistanceValue(distance) {
+    if (this.markerDistanceValue) {
+      this.markerDistanceValue.textContent = `${distance.toFixed(2)} meters`;
+    }
+  }
+
+          getMarkerDistance() {
+            return this.markerDistanceSlider ? parseFloat(this.markerDistanceSlider.value) : 0.0;
+          }
 
   updateDrawPlaneButton(success) {
     if (success) {

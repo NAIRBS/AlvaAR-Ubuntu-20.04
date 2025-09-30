@@ -25,33 +25,33 @@
 
 // ===== CONFIGURABLE THRESHOLDS =====
 // Epipolar and stereo matching thresholds
-static const double EPIPOLAR_THRESHOLD = 10.0;          // Essential matrix RANSAC threshold (pixels) - MAXIMUM RELAXED
+static const double EPIPOLAR_THRESHOLD = 1.0;           // Essential matrix RANSAC threshold (pixels) - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 1.0 (very strict)
-static const double OPTICAL_FLOW_ERROR = 0.05;           // Optical flow error threshold - MAXIMUM RELAXED
+static const double OPTICAL_FLOW_ERROR = 0.001;          // Optical flow error threshold - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 0.001 (extremely strict)
 static const double FEATURE_QUALITY = 0.001;            // Corner detection quality threshold
 static const double SUBPIXEL_ACCURACY = 0.01;           // Sub-pixel refinement accuracy (pixels)
-static const double Y_DIFF_THRESHOLD = 15.0;            // Y-coordinate difference for stereo matching (pixels) - MAXIMUM RELAXED
+static const double Y_DIFF_THRESHOLD = 5.0;             // Y-coordinate difference for stereo matching (pixels) - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 5.0 (moderate)
-static const double Y_DIFF_STRICT = 8.0;                // Stricter Y-difference for scale recovery (pixels) - MAXIMUM RELAXED
+static const double Y_DIFF_STRICT = 2.0;                // Stricter Y-difference for scale recovery (pixels) - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 2.0 (strict)
-static const double MIN_DEPTH = 0.05;                    // Minimum valid depth (meters) - RELAXED
+static const double MIN_DEPTH = 0.1;                     // Minimum valid depth (meters) - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 0.1 (10cm minimum)
-static const double MAX_DEPTH = 200.0;                   // Maximum valid depth (meters) - RELAXED
+static const double MAX_DEPTH = 100.0;                   // Maximum valid depth (meters) - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 100.0 (100m maximum)
-static const int MIN_STEREO_MATCHES = 1;                 // Minimum stereo matches for triangulation - MAXIMUM RELAXED
+static const int MIN_STEREO_MATCHES = 2;                 // Minimum stereo matches for triangulation - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 2 (minimum)
-static const int MIN_STEREO_MATCHES_STRICT = 2;          // Minimum stereo matches for scale recovery - MAXIMUM RELAXED
+static const int MIN_STEREO_MATCHES_STRICT = 4;          // Minimum stereo matches for scale recovery - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 4 (moderate)
-static const int MIN_3D_POINTS = 1;                      // Minimum 3D points after filtering - MAXIMUM RELAXED
+static const int MIN_3D_POINTS = 2;                      // Minimum 3D points after filtering - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 2 (minimum)
-static const int MIN_3D_POINTS_WARNING = 5;              // Warning threshold for 3D points - RELAXED
+static const int MIN_3D_POINTS_WARNING = 10;             // Warning threshold for 3D points - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 10 (strict warning)
-static const int LOST_TRACKING_THRESHOLD = 15;           // Frames before declaring tracking lost - RELAXED
+static const int LOST_TRACKING_THRESHOLD = 10;           // Frames before declaring tracking lost - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 10 (moderate)
-static const double MIN_SCALE_FACTOR = 0.00001;         // Minimum scale factor - RELAXED
+static const double MIN_SCALE_FACTOR = 0.0001;          // Minimum scale factor - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 0.0001 (very permissive)
-static const double MAX_SCALE_FACTOR = 100.0;            // Maximum scale factor - RELAXED
+static const double MAX_SCALE_FACTOR = 50.0;             // Maximum scale factor - RESTORED TO ORIGINAL
                                                          // ORIGINAL: 50.0 (reasonable maximum)
 
 static std::string g_stereo_calib_yaml_string;

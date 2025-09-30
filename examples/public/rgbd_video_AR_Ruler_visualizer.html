@@ -16,11 +16,20 @@
       <div id="distance-display">0.000 meters</div>
       <div id="nearest-distance-display">Nearest: 0.000 meters</div>
       <div id="status-display">Place start marker</div>
+      
+        <div id="marker-distance-control">
+          <label for="marker-distance-slider">Place Marker forward by:</label>
+          <input type="range" id="marker-distance-slider" min="0.0" max="0.5" step="0.05" value="0.0">
+          <div id="marker-distance-value">0.00 meters</div>
+        </div>
+      
       <div id="control-buttons">
-        <button id="place-marker">Mark Start Point</button>
-        <button id="end-measurement">Mark End Point</button>
-        <button id="reset-measurement">Reset</button>
-        <button id="draw-plane">Draw Plane</button>
+        <div class="button-row">
+          <button id="place-marker">Mark Start Point</button>
+          <button id="end-measurement">Mark End Point</button>
+          <button id="reset-measurement">Reset</button>
+          <button id="draw-plane">Draw Plane</button>
+        </div>
         <button id="toggle-right-camera">Show Right Camera</button>
       </div>
     </div>
