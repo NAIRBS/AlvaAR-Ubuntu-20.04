@@ -813,7 +813,8 @@ export class ARRulerSystem {
   updateMeasurement(currentPose) {
     if (this.measurementMode === 'measuring' && this.startPoint) {
       const { position, direction } = this.getCameraTransform(currentPose);
-      const currentEndPoint = this.raycastToWorld(position, direction);
+      const markerDistance = this.ui ? this.ui.getMarkerDistance() : 0.0;
+      const currentEndPoint = this.raycastToWorld(position, direction, 10.0, markerDistance);
       const distance = this.calculateDistance(this.startPoint, currentEndPoint);
       
       if (this.ui) {
