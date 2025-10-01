@@ -4,7 +4,7 @@ AlvaAR is a real-time visual SLAM algorithm running as WebAssembly, in the brows
 
 SLAM is the core building block of Augmented Reality applications, focusing on world tracking.
 
-![image](examples/public/assets/image.gif)
+![AR Ruler](https://github.com/user-attachments/assets/fa7505c0-54e9-4764-b0fb-5f062d9b4910)
 
 ## Examples
 The examples use [ThreeJS](https://threejs.org/) to apply and render the estimated camera pose to a 3d environment.  
