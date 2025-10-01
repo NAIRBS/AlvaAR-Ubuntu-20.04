@@ -871,97 +871,106 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                   }
                 }
               }
-              
-              // Render start and end markers in left frame
-              if (arRulerSystem && pose) {
-                // Get camera transform from pose for world-to-camera transformation
-                const { position: cameraPosition, direction: cameraDirection } = arRulerSystem.getCameraTransform(pose);
-
-                // Create camera quaternion from pose matrix with AlvaAR coordinate transformation
-                const rotationMatrix = new THREE.Matrix4().fromArray(pose);
-                const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
-                cameraQuaternion.set(-cameraQuaternion.x, cameraQuaternion.y, cameraQuaternion.z, cameraQuaternion.w);
-
-                // Create world-to-camera transformation matrix (inverse of camera pose)
-                const cameraInverseMatrix = new THREE.Matrix4();
-                cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
-
-                // Update 3D camera frustum visualization for pose debugging
-                if (window.createCameraFrustum) {
-                  window.createCameraFrustum(cameraPosition, cameraQuaternion);
-                }
-                
-                // Debug: Display camera pose information
-                if (window.debugCounter % 60 === 0) { // Log every 60 frames (about once per second)
-                  console.log('=== CAMERA POSE DEBUG ===');
-                  console.log('Camera position (world):', cameraPosition);
-                  console.log('Camera direction (world):', cameraDirection);
-                  console.log('Camera intrinsics (cx, cy):', cx, cy);
-                  console.log('Pose matrix translation:', pose[12], pose[13], pose[14]);
-                  console.log('Camera quaternion:', cameraQuaternion);
-                }
-
-                // Render start marker if it exists
-                if (arRulerSystem.startPoint) {
-                  // Transform world coordinates to camera coordinates (reverse of C++ backend)
-                  // C++ backend does: pt_world = current_pose * pt_camera
-                  // Frontend does: pt_camera = current_pose.inverse() * pt_world
-                  const worldPoint = new THREE.Vector3(arRulerSystem.startPoint.x, arRulerSystem.startPoint.y, arRulerSystem.startPoint.z);
-                  const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
-
-                  // Project camera coordinates to 2D image coordinates using pinhole camera model
-                  if (cameraPoint.z > 0.1) { // Only points in front of camera
-                    const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
-                    const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
-                    
-                    // Only draw if within image bounds
-                    if (x >= 0 && x < 480 && y >= 0 && y < 320) {
-                      // Draw green circle for start marker
-                      ctx.fillStyle = '#00ff00';
-                      ctx.beginPath();
-                      ctx.arc(x, y, 8, 0, 2 * Math.PI);
-                      ctx.fill();
-                      
-                      // Draw white border
-                      ctx.strokeStyle = '#ffffff';
-                      ctx.lineWidth = 2;
-                      ctx.stroke();
-                    }
-                  }
-                }
-
-                // Render end marker if it exists
-                if (arRulerSystem.endPoint) {
-                  // Transform world coordinates to camera coordinates
-                  const worldPoint = new THREE.Vector3(arRulerSystem.endPoint.x, arRulerSystem.endPoint.y, arRulerSystem.endPoint.z);
-                  const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
-
-                  // Project camera coordinates to 2D image coordinates using pinhole camera model
-                  if (cameraPoint.z > 0.1) { // Only points in front of camera
-                    const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
-                    const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
-                    
-                    // Only draw if within image bounds
-                    if (x >= 0 && x < 480 && y >= 0 && y < 320) {
-                      // Draw red circle for end marker
-                      ctx.fillStyle = '#ff0000';
-                      ctx.beginPath();
-                      ctx.arc(x, y, 8, 0, 2 * Math.PI);
-                      ctx.fill();
-                      
-                      // Draw white border
-                      ctx.strokeStyle = '#ffffff';
-                      ctx.lineWidth = 2;
-                      ctx.stroke();
-                    }
-                  }
-                }
-              }
             }
           } else {
             // No fallback - only show triangulated 3D points
             // If no 3D points available, left frame shows only the camera feed
             console.log('No triangulated 3D points available - showing camera feed only');
+          }
+
+          // Render start and end markers in left frame (moved outside 3D points condition)
+          if (arRulerSystem && pose) {
+            // Get camera transform from pose for world-to-camera transformation
+            const { position: cameraPosition, direction: cameraDirection } = arRulerSystem.getCameraTransform(pose);
+
+            // Create camera quaternion from pose matrix with AlvaAR coordinate transformation
+            const rotationMatrix = new THREE.Matrix4().fromArray(pose);
+            const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+            cameraQuaternion.set(-cameraQuaternion.x, cameraQuaternion.y, cameraQuaternion.z, cameraQuaternion.w);
+
+            // Create world-to-camera transformation matrix (inverse of camera pose)
+            const cameraInverseMatrix = new THREE.Matrix4();
+            cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
+
+            // Update 3D camera frustum visualization for pose debugging
+            if (window.createCameraFrustum) {
+              window.createCameraFrustum(cameraPosition, cameraQuaternion);
+            }
+            
+            // Debug: Display camera pose information
+            if (window.debugCounter % 60 === 0) { // Log every 60 frames (about once per second)
+              console.log('=== CAMERA POSE DEBUG ===');
+              console.log('Camera position (world):', cameraPosition);
+              console.log('Camera direction (world):', cameraDirection);
+              console.log('Pose matrix translation:', pose[12], pose[13], pose[14]);
+              console.log('Camera quaternion:', cameraQuaternion);
+            }
+
+            // Get camera intrinsics for marker projection
+            let fx = 525, fy = 525, cx = 320, cy = 240; // Default fallback values
+            
+            if (leftCameraIntrinsics) {
+              fx = leftCameraIntrinsics.fx;
+              fy = leftCameraIntrinsics.fy;
+              cx = leftCameraIntrinsics.cx;
+              cy = leftCameraIntrinsics.cy;
+            }
+
+            // Render start marker if it exists
+            if (arRulerSystem.startPoint) {
+              // Transform world coordinates to camera coordinates (reverse of C++ backend)
+              // C++ backend does: pt_world = current_pose * pt_camera
+              // Frontend does: pt_camera = current_pose.inverse() * pt_world
+              const worldPoint = new THREE.Vector3(arRulerSystem.startPoint.x, arRulerSystem.startPoint.y, arRulerSystem.startPoint.z);
+              const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+
+              // Project camera coordinates to 2D image coordinates using pinhole camera model
+              if (cameraPoint.z > 0.1) { // Only points in front of camera
+                const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
+                const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
+                
+                // Only draw if within image bounds
+                if (x >= 0 && x < 480 && y >= 0 && y < 320) {
+                  // Draw green circle for start marker
+                  ctx.fillStyle = '#00ff00';
+                  ctx.beginPath();
+                  ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                  ctx.fill();
+                  
+                  // Draw white border
+                  ctx.strokeStyle = '#ffffff';
+                  ctx.lineWidth = 2;
+                  ctx.stroke();
+                }
+              }
+            }
+
+            // Render end marker if it exists
+            if (arRulerSystem.endPoint) {
+              // Transform world coordinates to camera coordinates
+              const worldPoint = new THREE.Vector3(arRulerSystem.endPoint.x, arRulerSystem.endPoint.y, arRulerSystem.endPoint.z);
+              const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+
+              // Project camera coordinates to 2D image coordinates using pinhole camera model
+              if (cameraPoint.z > 0.1) { // Only points in front of camera
+                const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
+                const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
+                
+                // Only draw if within image bounds
+                if (x >= 0 && x < 480 && y >= 0 && y < 320) {
+                  // Draw red circle for end marker
+                  ctx.fillStyle = '#ff0000';
+                  ctx.beginPath();
+                  ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                  ctx.fill();
+                  
+                  // Draw white border
+                  ctx.strokeStyle = '#ffffff';
+                  ctx.lineWidth = 2;
+                  ctx.stroke();
+                }
+              }
+            }
           }
 
           // Draw detected plane outline on left frame if plane mode is enabled

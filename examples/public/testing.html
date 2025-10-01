@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
+  <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
+  <title>V1-01 Easy Testing - AR Ruler Distance Measurement</title>
+  <link rel="stylesheet" href="./assets/AR_Ruler/v1_01_easy_testing_styles.css">
+</head>
+<body>
+  <div id="main-container">
+    <div id="container">
+      <div id="crosshair"></div>
+    </div>
+    <div id="measurement-panel">
+      <div id="distance-display">0.000 meters</div>
+      <div id="nearest-distance-display">Nearest: 0.000 meters</div>
+      <div id="status-display">Place start marker</div>
+      
+        <div id="marker-distance-control">
+          <label for="marker-distance-slider">Place Marker forward by:</label>
+          <input type="range" id="marker-distance-slider" min="0.0" max="0.5" step="0.05" value="0.0">
+          <div id="marker-distance-value">0.00 meters</div>
+        </div>
+      
+      <div id="control-buttons">
+        <div class="button-row">
+          <button id="place-marker">Mark Start Point</button>
+          <button id="end-measurement">Mark End Point</button>
+          <button id="reset-measurement">Reset</button>
+          <button id="draw-plane">Draw Plane</button>
+        </div>
+        <button id="toggle-right-camera">Show Right Camera</button>
+      </div>
+    </div>
+    <div id="visualizer-panel"></div>
+  </div>
+<div id="overlay">
+  <button id="start_button">Start</button>
+  <div id="splash"></div>
+</div>
+
+<script type="module">
+  import Module from './assets/alva_ar.js';
+  import { Stats } from './assets/stats.js';
+  import { ARSimpleView, ARSimpleMap } from './assets/view.js';
+  import { Video } from './assets/utils.js';
+  import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
+  
+  // Import the main application
+  import { main } from './assets/AR_Ruler/v1_01_easy_testing_main.js';
+  
+  // Start the application with dependencies
+  window.addEventListener('load', () => main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE));
+</script>
+</body>
+</html>

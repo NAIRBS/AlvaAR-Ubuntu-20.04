@@ -1,0 +1,373 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Helvetica', sans-serif;
+  overflow: hidden;
+  background: #000;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#main-container {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+#container {
+  position: relative;
+  height: 320px;
+  overflow: hidden;
+  line-height: 0;
+  border: 2px solid #333;
+  box-shadow: 0 0 10px #000;
+  display: none; /* Hidden initially */
+  /* Width will be set dynamically by JavaScript */
+}
+
+#container > * {
+  position: absolute;
+  display: block;
+  user-select: none;
+  top: 0;
+  left: 0;
+  height: 320px;
+  animation: fadeIn 1.2s;
+  /* Width will be set dynamically by JavaScript */
+}
+
+#measurement-panel {
+  width: 320px;
+  height: 320px;
+  border: 2px solid #333;
+  box-shadow: 0 0 10px #000;
+  background: #fff;
+  position: relative;
+  display: none; /* Hidden initially */
+  flex-direction: column;
+  padding: 20px;
+}
+
+#visualizer-panel {
+  width: 400px;
+  height: 320px;
+  border: 2px solid #333;
+  box-shadow: 0 0 10px #000;
+  background: #fff;
+  position: relative;
+  display: none; /* Hidden initially */
+}
+
+#visualizer-panel::after {
+  content: "3D Scene Visualizer";
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #333;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 10;
+}
+
+#measurement-panel::after {
+  content: "AR Ruler - Distance Tool (V1-01 Easy)";
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #333;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 10;
+}
+
+#distance-display {
+  font-size: 2rem;
+  font-weight: bold;
+  text-align: center;
+  margin: 20px 0 10px 0;
+  padding: 15px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  border: 2px solid #333;
+}
+
+#nearest-distance-display {
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-align: center;
+  margin: 0 0 10px 0;
+  padding: 10px;
+  background: #e8f5e8;
+  border-radius: 8px;
+  border: 2px solid #28a745;
+  color: #155724;
+  display: block; /* Ensure it's visible */
+  min-height: 40px; /* Ensure it has some height */
+}
+
+#status-display {
+  font-size: 1rem;
+  text-align: center;
+  margin: 0 0 20px 0;
+  padding: 8px;
+  background: #e8f4fd;
+  border-radius: 5px;
+  border: 1px solid #007bff;
+  color: #0056b3;
+}
+
+#marker-distance-control {
+  margin: 0 0 15px 0;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #6c757d;
+}
+
+#marker-distance-control label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #495057;
+  margin-bottom: 5px;
+}
+
+#marker-distance-slider {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: #ddd;
+  outline: none;
+  margin-bottom: 5px;
+  -webkit-appearance: none;
+}
+
+#marker-distance-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+#marker-distance-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+#marker-distance-value {
+  font-size: 0.7rem;
+  font-weight: bold;
+  text-align: center;
+  color: #007bff;
+  background: #e3f2fd;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #bbdefb;
+}
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 320px; /* Center of left camera frame (640px / 2) */
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+#crosshair::before,
+#crosshair::after {
+  content: '';
+  position: absolute;
+  background: #ffffff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+#crosshair::before {
+  width: 2px;
+  height: 20px;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+#crosshair::after {
+  width: 20px;
+  height: 2px;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#control-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+#control-buttons .button-row {
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+}
+
+#control-buttons button {
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#place-marker {
+  background: #28a745;
+  color: white;
+  flex: 1;
+  width: 25%;
+}
+
+#place-marker:hover {
+  background: #218838;
+}
+
+#end-measurement {
+  background: #dc3545;
+  color: white;
+  flex: 1;
+  width: 25%;
+}
+
+#end-measurement:hover {
+  background: #c82333;
+}
+
+#reset-measurement {
+  background: #6c757d;
+  color: white;
+  flex: 1;
+  width: 25%;
+}
+
+#reset-measurement:hover {
+  background: #5a6268;
+}
+
+#toggle-right-camera {
+  background: #17a2b8;
+  color: white;
+  width: 100%;
+}
+
+#toggle-right-camera:hover {
+  background: #138496;
+}
+
+#draw-plane {
+  background: #007bff;
+  color: white;
+  flex: 1;
+  width: 25%;
+}
+
+#draw-plane:hover {
+  background: #0056b3;
+}
+
+#draw-plane.plane-active {
+  background: #28a745;
+}
+
+#draw-plane.plane-active:hover {
+  background: #218838;
+}
+
+canvas {
+  display: block;
+  height: 480px;
+  /* Width will be set dynamically by JavaScript */
+}
+
+#splash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  opacity: 1;
+}
+
+#overlay {
+  position: absolute;
+  font-size: 16px;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#overlay::before {
+  position: absolute;
+  width: 100%;
+  white-space: pre-wrap;
+        content: "V1-01 Easy Testing - AR Ruler Distance Measurement \A Using V1-01 Easy stereo dataset \A (left_camera_undistorted_640x320.mp4 / right_camera_undistorted_640x320.mp4)";
+  top: calc(50% + 50px);
+  text-align: center;
+  color: #949494;
+}
+
+#overlay button {
+  background: transparent;
+  border: 1px solid white;
+  border-radius: 4px;
+  color: white;
+  padding: 12px 18px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+@media screen and (max-device-width: 480px) and (orientation: landscape) {
+  #main-container { display: none; }
+  body::before {
+    content: "Rotate device to portrait mode.";
+    color: white;
+  }
+}
+
+@media screen and (max-device-width: 480px) and (orientation: portrait) {
+  #main-container { display: flex; }
+  body::before { content: none; }
+}

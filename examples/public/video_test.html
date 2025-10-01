@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Test</title>
+</head>
+<body>
+    <h1>Video Loading Test</h1>
+    <div>
+        <h2>Left Camera Video:</h2>
+        <video id="leftVideo" width="640" height="320" controls>
+            <source src="./Testing/V1_01_easy/left_camera_undistorted_640x320.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+    <div>
+        <h2>Right Camera Video:</h2>
+        <video id="rightVideo" width="640" height="320" controls>
+            <source src="./Testing/V1_01_easy/right_camera_undistorted_640x320.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+    <div>
+        <h2>YAML Config Test:</h2>
+        <button onclick="testYAML()">Test YAML Loading</button>
+        <div id="yamlResult"></div>
+    </div>
+    
+    <div>
+        <h2>Compare with Working Videos:</h2>
+        <button onclick="compareWithWorkingVideos()">Compare Encoding</button>
+        <div id="comparisonResult"></div>
+    </div>
+
+    <script>
+        function testYAML() {
+            console.log('🔍 Testing YAML file loading...');
+            console.log('📁 Attempting to fetch: ./Testing/V1-01-EASY-config.yaml');
+            
+            fetch('./Testing/V1-01-EASY-config.yaml')
+                .then(response => {
+                    console.log('📡 YAML Response status:', response.status, response.statusText);
+                    console.log('📡 YAML Response headers:', response.headers);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(text => {
+                    console.log('✅ YAML file loaded successfully!');
+                    console.log('📄 YAML content length:', text.length);
+                    console.log('📄 YAML first 200 chars:', text.substring(0, 200));
+                    document.getElementById('yamlResult').innerHTML = '<pre style="background: #f0f0f0; padding: 10px;">' + text.substring(0, 500) + '...</pre>';
+                })
+                .catch(error => {
+                    console.error('❌ YAML loading failed:', error);
+                    document.getElementById('yamlResult').innerHTML = '<div style="color: red;">Error: ' + error.message + '</div>';
+                });
+        }
+
+        // Test video loading with detailed logging
+        const leftVideo = document.getElementById('leftVideo');
+        const rightVideo = document.getElementById('rightVideo');
+
+        console.log('🎬 Starting video loading tests...');
+        console.log('📁 Left video source:', leftVideo.src);
+        console.log('📁 Right video source:', rightVideo.src);
+
+        // Left video event listeners
+        leftVideo.addEventListener('loadstart', () => {
+            console.log('🔄 Left video: Load started');
+        });
+
+        leftVideo.addEventListener('loadedmetadata', () => {
+            console.log('📊 Left video metadata loaded:');
+            console.log('  - Duration:', leftVideo.duration);
+            console.log('  - Video width:', leftVideo.videoWidth);
+            console.log('  - Video height:', leftVideo.videoHeight);
+            console.log('  - Ready state:', leftVideo.readyState);
+            
+            // Check video encoding and format details
+            console.log('🎬 Left video encoding details:');
+            console.log('  - Video codec:', leftVideo.videoTracks.length > 0 ? leftVideo.videoTracks[0].label : 'Unknown');
+            console.log('  - Audio tracks:', leftVideo.audioTracks.length);
+            console.log('  - Text tracks:', leftVideo.textTracks.length);
+            console.log('  - Network state:', leftVideo.networkState);
+            console.log('  - Seeking:', leftVideo.seekable.length > 0 ? `Range: ${leftVideo.seekable.start(0)}-${leftVideo.seekable.end(0)}` : 'Not seekable');
+        });
+
+        leftVideo.addEventListener('loadeddata', () => {
+            console.log('✅ Left video: Data loaded successfully');
+        });
+
+        leftVideo.addEventListener('canplay', () => {
+            console.log('▶️ Left video: Can start playing');
+        });
+
+        leftVideo.addEventListener('error', (e) => {
+            console.error('❌ Left video error:', e);
+            console.error('❌ Left video error details:', {
+                error: leftVideo.error,
+                networkState: leftVideo.networkState,
+                readyState: leftVideo.readyState,
+                src: leftVideo.src
+            });
+            alert('Left video failed to load - check console for details');
+        });
+
+        // Right video event listeners
+        rightVideo.addEventListener('loadstart', () => {
+            console.log('🔄 Right video: Load started');
+        });
+
+        rightVideo.addEventListener('loadedmetadata', () => {
+            console.log('📊 Right video metadata loaded:');
+            console.log('  - Duration:', rightVideo.duration);
+            console.log('  - Video width:', rightVideo.videoWidth);
+            console.log('  - Video height:', rightVideo.videoHeight);
+            console.log('  - Ready state:', rightVideo.readyState);
+            
+            // Check video encoding and format details
+            console.log('🎬 Right video encoding details:');
+            console.log('  - Video codec:', rightVideo.videoTracks.length > 0 ? rightVideo.videoTracks[0].label : 'Unknown');
+            console.log('  - Audio tracks:', rightVideo.audioTracks.length);
+            console.log('  - Text tracks:', rightVideo.textTracks.length);
+            console.log('  - Network state:', rightVideo.networkState);
+            console.log('  - Seeking:', rightVideo.seekable.length > 0 ? `Range: ${rightVideo.seekable.start(0)}-${rightVideo.seekable.end(0)}` : 'Not seekable');
+        });
+
+        rightVideo.addEventListener('loadeddata', () => {
+            console.log('✅ Right video: Data loaded successfully');
+        });
+
+        rightVideo.addEventListener('canplay', () => {
+            console.log('▶️ Right video: Can start playing');
+        });
+
+        rightVideo.addEventListener('error', (e) => {
+            console.error('❌ Right video error:', e);
+            console.error('❌ Right video error details:', {
+                error: rightVideo.error,
+                networkState: rightVideo.networkState,
+                readyState: rightVideo.readyState,
+                src: rightVideo.src
+            });
+            alert('Right video failed to load - check console for details');
+        });
+
+        // Test file existence with fetch
+        console.log('🔍 Testing file existence with fetch...');
+        
+        fetch('./Testing/V1_01_easy/left_camera_undistorted_640x320.mp4', { method: 'HEAD' })
+            .then(response => {
+                console.log('📁 Left video file check - Status:', response.status, response.statusText);
+                if (response.ok) {
+                    console.log('✅ Left video file exists and is accessible');
+                } else {
+                    console.log('❌ Left video file not accessible:', response.status);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Left video file check failed:', error);
+            });
+
+        fetch('./Testing/V1_01_easy/right_camera_undistorted_640x320.mp4', { method: 'HEAD' })
+            .then(response => {
+                console.log('📁 Right video file check - Status:', response.status, response.statusText);
+                if (response.ok) {
+                    console.log('✅ Right video file exists and is accessible');
+                } else {
+                    console.log('❌ Right video file not accessible:', response.status);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Right video file check failed:', error);
+            });
+
+        fetch('./Testing/V1-01-EASY-config.yaml', { method: 'HEAD' })
+            .then(response => {
+                console.log('📁 YAML file check - Status:', response.status, response.statusText);
+                if (response.ok) {
+                    console.log('✅ YAML file exists and is accessible');
+                } else {
+                    console.log('❌ YAML file not accessible:', response.status);
+                }
+            })
+            .catch(error => {
+                console.error('❌ YAML file check failed:', error);
+            });
+
+        function compareWithWorkingVideos() {
+            console.log('🔍 Comparing V1_01_easy videos with working videos...');
+            
+            // Create test videos for comparison
+            const workingLeft = document.createElement('video');
+            const workingRight = document.createElement('video');
+            
+            workingLeft.src = './assets/v2_ruler_left_web.mp4';
+            workingRight.src = './assets/v2_ruler_right_web.mp4';
+            
+            workingLeft.addEventListener('loadedmetadata', () => {
+                console.log('📊 Working Left Video (v2_ruler_left_web.mp4):');
+                console.log('  - Duration:', workingLeft.duration);
+                console.log('  - Video width:', workingLeft.videoWidth);
+                console.log('  - Video height:', workingLeft.videoHeight);
+                console.log('  - Ready state:', workingLeft.readyState);
+                console.log('  - Network state:', workingLeft.networkState);
+                console.log('  - Seeking:', workingLeft.seekable.length > 0 ? `Range: ${workingLeft.seekable.start(0)}-${workingLeft.seekable.end(0)}` : 'Not seekable');
+                
+                document.getElementById('comparisonResult').innerHTML += 
+                    '<h3>Working Left Video:</h3><pre>' + 
+                    `Duration: ${workingLeft.duration}s\n` +
+                    `Dimensions: ${workingLeft.videoWidth}x${workingLeft.videoHeight}\n` +
+                    `Ready State: ${workingLeft.readyState}\n` +
+                    `Network State: ${workingLeft.networkState}\n` +
+                    `Seekable: ${workingLeft.seekable.length > 0 ? 'Yes' : 'No'}` +
+                    '</pre>';
+            });
+            
+            workingRight.addEventListener('loadedmetadata', () => {
+                console.log('📊 Working Right Video (v2_ruler_right_web.mp4):');
+                console.log('  - Duration:', workingRight.duration);
+                console.log('  - Video width:', workingRight.videoWidth);
+                console.log('  - Video height:', workingRight.videoHeight);
+                console.log('  - Ready state:', workingRight.readyState);
+                console.log('  - Network state:', workingRight.networkState);
+                console.log('  - Seeking:', workingRight.seekable.length > 0 ? `Range: ${workingRight.seekable.start(0)}-${workingRight.seekable.end(0)}` : 'Not seekable');
+                
+                document.getElementById('comparisonResult').innerHTML += 
+                    '<h3>Working Right Video:</h3><pre>' + 
+                    `Duration: ${workingRight.duration}s\n` +
+                    `Dimensions: ${workingRight.videoWidth}x${workingRight.videoHeight}\n` +
+                    `Ready State: ${workingRight.readyState}\n` +
+                    `Network State: ${workingRight.networkState}\n` +
+                    `Seekable: ${workingRight.seekable.length > 0 ? 'Yes' : 'No'}` +
+                    '</pre>';
+            });
+            
+            workingLeft.addEventListener('error', (e) => {
+                console.error('❌ Working left video error:', e);
+                document.getElementById('comparisonResult').innerHTML += '<div style="color: red;">Working Left Video Error: ' + e.message + '</div>';
+            });
+            
+            workingRight.addEventListener('error', (e) => {
+                console.error('❌ Working right video error:', e);
+                document.getElementById('comparisonResult').innerHTML += '<div style="color: red;">Working Right Video Error: ' + e.message + '</div>';
+            });
+            
+            // Load the working videos
+            workingLeft.load();
+            workingRight.load();
+        }
+    </script>
+</body>
+</html>

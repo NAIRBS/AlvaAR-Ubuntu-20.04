@@ -2,7 +2,10 @@
 import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
 
 // Centralized monocular scale factor for AR ruler measurements
-export const MONOCULAR_SCALE_FACTOR = 1; //20 worked really well previously
+// V1-01 Easy dataset has 2.73x larger baseline (52.404 vs 19.202267 pixels)
+// This means stereo triangulation is more accurate, so scale factor should be adjusted
+export const MONOCULAR_SCALE_FACTOR = 1; // Baseline ratio: 52.404/19.202267 ≈ 2.73
+// Note: Scale factor may need adjustment based on actual performance testing
 
 export async function waitForEmscriptenModule(ModuleInstance) {
   return new Promise(resolve => {
