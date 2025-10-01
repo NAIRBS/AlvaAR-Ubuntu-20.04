@@ -430,6 +430,17 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         arRulerSystem.updateMarkerPositions(latestPose);
       }
     };
+    
+    // Setup pose export button handlers
+    document.getElementById('export-poses').addEventListener('click', () => {
+      exportPoseData();
+    });
+    
+    document.getElementById('clear-poses').addEventListener('click', () => {
+      poseExportData = [];
+      frameCounter = 0;
+      console.log('Pose export data cleared');
+    });
 
     stats = Stats;
     stats.add('total');
@@ -444,6 +455,136 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
 
     let latestPose = null;
     let firstFrame = true;
+    
+    // Pose export functionality
+    let poseExportData = [];
+    let frameCounter = 0;
+    let startTime = null;
+    
+    // Function to convert 16-element pose matrix to 7-element pose (position + quaternion)
+    function poseMatrixTo7Element(poseMatrix) {
+      if (!poseMatrix || poseMatrix.length !== 16) {
+        return null;
+      }
+      
+      // Extract translation (position)
+      const position_x = poseMatrix[12];
+      const position_y = poseMatrix[13];
+      const position_z = poseMatrix[14];
+      
+      // Extract rotation matrix and convert to quaternion
+      const R = [
+        [poseMatrix[0], poseMatrix[1], poseMatrix[2]],
+        [poseMatrix[4], poseMatrix[5], poseMatrix[6]],
+        [poseMatrix[8], poseMatrix[9], poseMatrix[10]]
+      ];
+      
+      // Convert rotation matrix to quaternion
+      const trace = R[0][0] + R[1][1] + R[2][2];
+      let orientation_w, orientation_x, orientation_y, orientation_z;
+      
+      if (trace > 0) {
+        const s = Math.sqrt(trace + 1.0) * 2; // s = 4 * qw
+        orientation_w = 0.25 * s;
+        orientation_x = (R[2][1] - R[1][2]) / s;
+        orientation_y = (R[0][2] - R[2][0]) / s;
+        orientation_z = (R[1][0] - R[0][1]) / s;
+      } else if (R[0][0] > R[1][1] && R[0][0] > R[2][2]) {
+        const s = Math.sqrt(1.0 + R[0][0] - R[1][1] - R[2][2]) * 2; // s = 4 * qx
+        orientation_w = (R[2][1] - R[1][2]) / s;
+        orientation_x = 0.25 * s;
+        orientation_y = (R[0][1] + R[1][0]) / s;
+        orientation_z = (R[0][2] + R[2][0]) / s;
+      } else if (R[1][1] > R[2][2]) {
+        const s = Math.sqrt(1.0 + R[1][1] - R[0][0] - R[2][2]) * 2; // s = 4 * qy
+        orientation_w = (R[0][2] - R[2][0]) / s;
+        orientation_x = (R[0][1] + R[1][0]) / s;
+        orientation_y = 0.25 * s;
+        orientation_z = (R[1][2] + R[2][1]) / s;
+      } else {
+        const s = Math.sqrt(1.0 + R[2][2] - R[0][0] - R[1][1]) * 2; // s = 4 * qz
+        orientation_w = (R[1][0] - R[0][1]) / s;
+        orientation_x = (R[0][2] + R[2][0]) / s;
+        orientation_y = (R[1][2] + R[2][1]) / s;
+        orientation_z = 0.25 * s;
+      }
+      
+      return {
+        position_x,
+        position_y,
+        position_z,
+        orientation_w,
+        orientation_x,
+        orientation_y,
+        orientation_z
+      };
+    }
+    
+    // Function to export pose data as CSV
+    function exportPoseData() {
+      if (poseExportData.length === 0) {
+        console.log('No pose data to export');
+        return;
+      }
+      
+      // Create CSV header
+      const csvHeader = 'timestamp_ns,filename,position_x,position_y,position_z,orientation_w,orientation_x,orientation_y,orientation_z,velocity_x,velocity_y,velocity_z\n';
+      
+      // Create CSV content
+      const csvContent = poseExportData.map(pose => {
+        return `${pose.timestamp_ns},${pose.filename},${pose.position_x},${pose.position_y},${pose.position_z},${pose.orientation_w},${pose.orientation_x},${pose.orientation_y},${pose.orientation_z},0.0,0.0,0.0`;
+      }).join('\n');
+      
+      const fullCsv = csvHeader + csvContent;
+      
+      // Create and download file
+      const blob = new Blob([fullCsv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `estimated_poses_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      console.log(`Exported ${poseExportData.length} pose estimates to CSV`);
+    }
+    
+    // Function to add pose to export data
+    function addPoseToExport(poseMatrix) {
+      if (!poseMatrix || poseMatrix.length !== 16) return;
+      
+      const pose7 = poseMatrixTo7Element(poseMatrix);
+      if (!pose7) return;
+      
+      // Generate timestamp (nanoseconds since epoch)
+      const timestamp = Date.now() * 1000000; // Convert to nanoseconds
+      
+      // Generate filename (frame number)
+      const filename = `frame_${frameCounter.toString().padStart(6, '0')}.png`;
+      
+      // Add to export data
+      poseExportData.push({
+        timestamp_ns: timestamp,
+        filename: filename,
+        position_x: pose7.position_x,
+        position_y: pose7.position_y,
+        position_z: pose7.position_z,
+        orientation_w: pose7.orientation_w,
+        orientation_x: pose7.orientation_x,
+        orientation_y: pose7.orientation_y,
+        orientation_z: pose7.orientation_z
+      });
+      
+      frameCounter++;
+      
+      // Update pose counter display
+      const poseCounterDisplay = document.getElementById('pose-counter-display');
+      if (poseCounterDisplay) {
+        poseCounterDisplay.textContent = `Poses captured: ${poseExportData.length}`;
+      }
+    }
 
     // Function to refresh/clear the visualizer when video loops
     function refreshVisualizer() {
@@ -757,6 +898,9 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           
           if (pose) {
             latestPose = pose;
+            
+            // Export pose data for ground truth comparison
+            addPoseToExport(pose);
             
             // Use the standard ARSimpleView updateCameraPose method like stereo visualizer
             view.updateCameraPose(pose);
