@@ -23,7 +23,7 @@ html, body {
 
 #container {
   position: relative;
-  height: 320px;
+  height: 480px;
   overflow: hidden;
   line-height: 0;
   border: 2px solid #333;
@@ -38,14 +38,14 @@ html, body {
   user-select: none;
   top: 0;
   left: 0;
-  height: 320px;
+  height: 480px;
   animation: fadeIn 1.2s;
   /* Width will be set dynamically by JavaScript */
 }
 
 #measurement-panel {
   width: 320px;
-  height: 320px;
+  height: 480px;
   border: 2px solid #333;
   box-shadow: 0 0 10px #000;
   background: #fff;
@@ -57,7 +57,7 @@ html, body {
 
 #visualizer-panel {
   width: 400px;
-  height: 320px;
+  height: 480px;
   border: 2px solid #333;
   box-shadow: 0 0 10px #000;
   background: #fff;
@@ -185,7 +185,7 @@ html, body {
 #crosshair {
   position: absolute;
   top: 50%;
-  left: 320px; /* Center of left camera frame (640px / 2) */
+  left: 376px; /* Center of left camera frame (752px / 2) */
   transform: translate(-50%, -50%);
   width: 20px;
   height: 20px;
@@ -337,7 +337,7 @@ canvas {
   position: absolute;
   width: 100%;
   white-space: pre-wrap;
-        content: "V1-01 Easy Testing - AR Ruler Distance Measurement \A Using V1-01 Easy stereo dataset \A (left_camera_undistorted_640x320.mp4 / right_camera_undistorted_640x320.mp4)";
+        content: "V1-01 Easy Testing - AR Ruler Distance Measurement \A Using V1-01 Easy stereo dataset \A (left_camera.mp4 / right_camera.mp4)";
   top: calc(50% + 50px);
   text-align: center;
   color: #949494;

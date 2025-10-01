@@ -20,8 +20,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   let latestFrameBitmapLeft = null;
   let latestFrameBitmapRight = null;
   let showRightCamera = false;
-  let image_width = 640;
-  let image_height = 320;
+  let image_width = 752;
+  let image_height = 480;
 
   // WebSocket error display functions
   function showWebSocketError(message) {
@@ -122,7 +122,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     }
     
            // Persistent buffer allocation
-     const leftFrameSize = 640 * 320 * 4;
+     const leftFrameSize = 752 * 480 * 4;
      const framepointsBufSize = 4096 * 4;
      const leftPtr = ModuleInstance._malloc(leftFrameSize);
      const rightPtr = ModuleInstance._malloc(leftFrameSize);
@@ -214,8 +214,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     } else {
       // Video mode: Load pre-recorded videos
       console.log("🎬 Starting video mode");
-      mediaLeft = await Video.Initialize('./Testing/V1_01_easy/left_camera_undistorted_640x320.mp4');
-      mediaRight = await Video.Initialize('./Testing/V1_01_easy/right_camera_undistorted_640x320.mp4');
+     mediaLeft = await Video.Initialize('./Testing/V1_01_easy/left_camera.mp4');
+     mediaRight = await Video.Initialize('./Testing/V1_01_easy/right_camera.mp4');
       mediaLeft.el.play();
       mediaLeft.el.loop = true;
       mediaRight.el.play();
@@ -261,12 +261,12 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
      $view.style.position = 'absolute';
      $view.style.left = '0px';
      $view.style.top = '0px';
-     $view.style.width = '640px';
-     $view.style.height = '320px';
+     $view.style.width = '752px';
+     $view.style.height = '480px';
      $view.style.zIndex = '10';
      // Initialize 3D Scene Visualizer using ARSimpleMap like stereo visualizer
-    sceneVisualizer = new ARSimpleMap($visualizerContainer, 400, 320);
-    const camRenderer = new ARSimpleView($view, 640, 320, sceneVisualizer);
+    sceneVisualizer = new ARSimpleMap($visualizerContainer, 400, 480);
+    const camRenderer = new ARSimpleView($view, 752, 480, sceneVisualizer);
     
     // Make the camera helper bigger and red (like stereo visualizer)
     setTimeout(() => {
@@ -341,7 +341,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     // Add camera frustum visualization for pose debugging
     let cameraFrustum = null;
     let cameraMarker = null;
-    function createCameraFrustum(position, rotation, fov = 60, aspect = 640/320, near = 0.1, far = 10) {
+    function createCameraFrustum(position, rotation, fov = 60, aspect = 752/480, near = 0.1, far = 10) {
       // Remove existing frustum
       if (cameraFrustum) {
         sceneVisualizer.scene.remove(cameraFrustum);
@@ -861,7 +861,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                   const y = (point3D.y * fy / point3D.z) + cy;
                 
                   // Only draw points that are in front of camera and within image bounds
-                  if (x >= 0 && x < 640 && y >= 0 && y < 320) {
+                  if (x >= 0 && x < 752 && y >= 0 && y < 480) {
                     // Color based on depth (closer = brighter, farther = darker)
                     const depth = Math.min(point3D.z / 5.0, 1.0); // Use camera Z coordinate for depth
                     const intensity = Math.floor(255 * (1.0 - depth)); // Closer points are brighter
@@ -940,7 +940,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
                 
                 // Only draw if within image bounds
-                if (x >= 0 && x < 640 && y >= 0 && y < 320) {
+                if (x >= 0 && x < 752 && y >= 0 && y < 480) {
                   // Draw green circle for start marker
                   ctx.fillStyle = '#00ff00';
                   ctx.beginPath();
@@ -967,7 +967,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
                 
                 // Only draw if within image bounds
-                if (x >= 0 && x < 640 && y >= 0 && y < 320) {
+                if (x >= 0 && x < 752 && y >= 0 && y < 480) {
                   // Draw red circle for end marker
                   ctx.fillStyle = '#ff0000';
                   ctx.beginPath();

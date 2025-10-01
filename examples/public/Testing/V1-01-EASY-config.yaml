@@ -1,6 +1,6 @@
 %YAML:1.0
-LEFT.width: 640
-LEFT.height: 320
+LEFT.width: 752
+LEFT.height: 480
 LEFT.D: !!opencv-matrix
   rows: 1
   cols: 5

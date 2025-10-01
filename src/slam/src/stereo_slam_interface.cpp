@@ -334,42 +334,48 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
 
     // LOG: Number of good stereo matches (may slow browser if too frequent)
     // std::cerr << "[StereoSLAM] Total left keypoints: " << tracked_kps_left.size() << ", Good stereo matches: " << good_pts_left.size() << std::endl;
-    if (good_pts_left.size() < MIN_STEREO_MATCHES) {
-        //std::cerr << "[StereoSLAM] DEBUG: Not enough good stereo matches: " << good_pts_left.size() << ", returning 0" << std::endl;
-        return 0;
-    }
-
-    // Triangulation
-    std::vector<cv::Point3d> points3d;
-    StereoSLAMUtils::triangulateStereoMatches(good_pts_left, good_pts_right, calib, points3d);
-    // LOG: Number of triangulated 3D points
-    // std::cerr << "[StereoSLAM] Triangulated 3D points: " << points3d.size() << std::endl;
-    // LOG: Print first 5 3D points for debugging
-    // for (size_t i = 0; i < std::min(points3d.size(), size_t(5)); ++i) {
-    //     std::cerr << "[StereoSLAM] 3D point " << i << ": "
-    //               << points3d[i].x << ", " << points3d[i].y << ", " << points3d[i].z << std::endl;
-    // }
-    // Filter out points with z <= 0
+    
+    // Initialize 3D points as empty - will be populated if stereo triangulation succeeds
     std::vector<cv::Point3d> filtered_points3d;
-    std::vector<cv::Point2f> filtered_keypoints_left;
-    std::vector<cv::Point2f> filtered_keypoints_right;
-    for (size_t i = 0; i < points3d.size(); ++i) {
-        if (points3d[i].z > 0) {
-            filtered_points3d.push_back(points3d[i]);
-            filtered_keypoints_left.push_back(good_pts_left[i]);
-            filtered_keypoints_right.push_back(good_pts_right[i]);
+    bool has_stereo_triangulation = false;
+    
+    if (good_pts_left.size() >= MIN_STEREO_MATCHES) {
+        // Triangulation
+        std::vector<cv::Point3d> points3d;
+        StereoSLAMUtils::triangulateStereoMatches(good_pts_left, good_pts_right, calib, points3d);
+        // LOG: Number of triangulated 3D points
+        // std::cerr << "[StereoSLAM] Triangulated 3D points: " << points3d.size() << std::endl;
+        // LOG: Print first 5 3D points for debugging
+        // for (size_t i = 0; i < std::min(points3d.size(), size_t(5)); ++i) {
+        //     std::cerr << "[StereoSLAM] 3D point " << i << ": "
+        //               << points3d[i].x << ", " << points3d[i].y << ", " << points3d[i].z << std::endl;
+        // }
+        // Filter out points with z <= 0
+        std::vector<cv::Point2f> filtered_keypoints_left;
+        std::vector<cv::Point2f> filtered_keypoints_right;
+        for (size_t i = 0; i < points3d.size(); ++i) {
+            if (points3d[i].z > 0) {
+                filtered_points3d.push_back(points3d[i]);
+                filtered_keypoints_left.push_back(good_pts_left[i]);
+                filtered_keypoints_right.push_back(good_pts_right[i]);
+            }
         }
+
+        if (filtered_points3d.size() < MIN_3D_POINTS_WARNING) {
+            // std::cerr << "[StereoSLAM] WARNING: Fewer than " << MIN_3D_POINTS_WARNING << " good 3D points for pose estimation. Pose may be unreliable." << std::endl;
+        }
+        
+        if (filtered_points3d.size() >= MIN_3D_POINTS) {
+            has_stereo_triangulation = true;
+            //std::cerr << "[StereoSLAM] DEBUG: Stereo triangulation successful with " << filtered_points3d.size() << " 3D points" << std::endl;
+        } else {
+            //std::cerr << "[StereoSLAM] DEBUG: Insufficient 3D points (" << filtered_points3d.size() << "), but continuing with monocular tracking" << std::endl;
+        }
+    } else {
+        //std::cerr << "[StereoSLAM] DEBUG: Insufficient stereo matches (" << good_pts_left.size() << "), but continuing with monocular tracking" << std::endl;
     }
 
-    if (filtered_points3d.size() < MIN_3D_POINTS_WARNING) {
-        // std::cerr << "[StereoSLAM] WARNING: Fewer than " << MIN_3D_POINTS_WARNING << " good 3D points for pose estimation. Pose may be unreliable." << std::endl;
-    }
-    if (filtered_points3d.size() < MIN_3D_POINTS) {
-        //std::cerr << "[StereoSLAM] DEBUG: Not enough 3D points after filtering: " << filtered_points3d.size() << ", returning 0" << std::endl;
-        return 0;
-    }
-
-    // Store 3D points for plane detection
+    // Store 3D points for plane detection (empty if no stereo triangulation)
     lastStereo3DPoints = filtered_points3d;
 
     // --- Map-based, keyframe-driven stereo SLAM ---
@@ -648,6 +654,30 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                 Eigen::Quaterniond q(R);
                 
                 // Apply scale factor to monocular pose to maintain metric scale
+                // If scale_factor is not set (no previous stereo initialization), calculate it from stereo baseline
+                if (scale_factor == 1.0 && !has_stereo_triangulation) {
+                    // Fallback: calculate scale factor from stereo baseline for monocular tracking
+                    double stereo_baseline = std::abs(calib.T_left_right_.translation().x());
+                    if (stereo_baseline < 1e-6) stereo_baseline = 0.1; // Fallback baseline
+                    
+                    double mono_translation_norm = t.norm();
+                    if (mono_translation_norm > 1e-6) {
+                        scale_factor = stereo_baseline / mono_translation_norm;
+                        
+                        // Apply scale factor bounds
+                        const double min_scale = MIN_SCALE_FACTOR;
+                        const double max_scale = MAX_SCALE_FACTOR;
+                        if (scale_factor < min_scale) {
+                            scale_factor = min_scale;
+                        } else if (scale_factor > max_scale) {
+                            scale_factor = max_scale;
+                        }
+                        
+                        //std::cerr << "[StereoSLAM] DEBUG: Fallback scale recovery for monocular tracking: baseline=" << stereo_baseline 
+                        //          << ", mono_norm=" << mono_translation_norm << ", scale_factor=" << scale_factor << std::endl;
+                    }
+                }
+                
                 t = t * scale_factor;
                 current_pose = Sophus::SE3d(q, t);
                 last_pose = current_pose;
@@ -672,6 +702,83 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
             }
         } else {
             // Fallback: keep the last pose if monocular system not available
+            current_pose = last_pose;
+        }
+    }
+    
+    // --- Fallback for when stereo triangulation fails but we still want pose tracking ---
+    if (!scale_initialized && !has_stereo_triangulation && tracked_kps_left.size() >= 20) {
+        // Try monocular-only initialization if stereo failed
+        if (monocular_system_initialized && monocular_system) {
+            // Convert left image to format expected by monocular system
+            cv::Mat left_rgba_for_mono(height, width, CV_8UC4, reinterpret_cast<uint8_t*>(leftImagePtr));
+            cv::Mat left_gray_for_mono;
+            cv::cvtColor(left_rgba_for_mono, left_gray_for_mono, cv::COLOR_RGBA2GRAY);
+            
+            // Call monocular SLAM for pose update
+            uint64_t timestamp = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            int status = monocular_system->processCameraPose(left_gray_for_mono, timestamp);
+            
+            if (status == 1) {
+                // Get pose from monocular system
+                float pose_data[16];
+                monocular_system->findCameraPose(leftImagePtr, reinterpret_cast<int>(pose_data));
+                
+                // Convert 16-element pose to 7-element format (translation + quaternion)
+                Eigen::Matrix3d R;
+                R << pose_data[0], pose_data[1], pose_data[2],
+                     pose_data[4], pose_data[5], pose_data[6],
+                     pose_data[8], pose_data[9], pose_data[10];
+                
+                Eigen::Vector3d t(pose_data[12], pose_data[13], pose_data[14]);
+                Eigen::Quaterniond q(R);
+                
+                // Use stereo baseline for scale even in monocular-only mode
+                // This ensures consistent metric scale regardless of stereo triangulation success
+                double stereo_baseline = std::abs(calib.T_left_right_.translation().x());
+                if (stereo_baseline < 1e-6) stereo_baseline = 0.1; // Fallback baseline
+                
+                // Calculate scale factor using stereo baseline (same as stereo initialization)
+                double mono_translation_norm = t.norm();
+                if (mono_translation_norm > 1e-6) {
+                    scale_factor = stereo_baseline / mono_translation_norm;
+                    
+                    // Apply scale factor bounds
+                    const double min_scale = MIN_SCALE_FACTOR;
+                    const double max_scale = MAX_SCALE_FACTOR;
+                    if (scale_factor < min_scale) {
+                        scale_factor = min_scale;
+                    } else if (scale_factor > max_scale) {
+                        scale_factor = max_scale;
+                    }
+                    
+                    t = t * scale_factor;
+                    
+                    //std::cerr << "[StereoSLAM] DEBUG: Monocular-only scale recovery: baseline=" << stereo_baseline 
+                    //          << ", mono_norm=" << mono_translation_norm << ", scale_factor=" << scale_factor << std::endl;
+                } else {
+                    // Fallback to default scale if monocular translation is too small
+                    t = t * 1.0;
+                    scale_factor = 1.0;
+                    //std::cerr << "[StereoSLAM] WARNING: Monocular translation too small, using default scale" << std::endl;
+                }
+                current_pose = Sophus::SE3d(q, t);
+                last_pose = current_pose;
+                
+                // Update frame for compatibility
+                frame->setTwc(current_pose);
+                
+                // Mark as initialized for future frames
+                scale_initialized = true;
+                
+                //std::cerr << "[StereoSLAM] DEBUG: Monocular-only initialization successful (no stereo triangulation)" << std::endl;
+            } else {
+                // If monocular SLAM also fails, keep the last pose
+                current_pose = last_pose;
+                //std::cerr << "[StereoSLAM] DEBUG: Monocular-only initialization failed (status: " << status << ")" << std::endl;
+            }
+        } else {
+            // No monocular system available, keep last pose
             current_pose = last_pose;
         }
     }
