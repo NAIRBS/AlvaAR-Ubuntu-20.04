@@ -239,12 +239,59 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     });
   }
 
+  // Set up panel toggle functionality
+  const togglePanelsBtn = document.getElementById('toggle-panels');
+  if (togglePanelsBtn) {
+    // Set initial button state
+    togglePanelsBtn.textContent = '👁️';
+    togglePanelsBtn.title = 'Hide Panels';
+    
+    togglePanelsBtn.addEventListener('click', () => {
+      panelsVisible = !panelsVisible;
+      
+      const measurementPanel = document.getElementById('measurement-panel');
+      const visualizerPanel = document.getElementById('visualizer-panel');
+      
+      if (panelsVisible) {
+        // Show panels
+        if (measurementPanel) {
+          measurementPanel.style.display = 'flex';
+        }
+        if (visualizerPanel) {
+          visualizerPanel.style.display = 'block';
+        }
+        togglePanelsBtn.textContent = '👁️';
+        togglePanelsBtn.classList.remove('panels-hidden');
+        togglePanelsBtn.title = 'Hide Panels';
+      } else {
+        // Hide panels
+        if (measurementPanel) {
+          measurementPanel.style.display = 'none';
+        }
+        if (visualizerPanel) {
+          visualizerPanel.style.display = 'none';
+        }
+        togglePanelsBtn.textContent = '🙈';
+        togglePanelsBtn.classList.add('panels-hidden');
+        togglePanelsBtn.title = 'Show Panels';
+      }
+      
+      console.log('Panels visibility toggled:', panelsVisible ? 'visible' : 'hidden');
+    });
+  }
+
   let alva, view, stats;
   let arRulerSystem, visualizer, measurementUI;
   
   // Make AR Ruler System and Measurement UI globally accessible for reset
   window.arRulerSystem = null;
   window.measurementUI = null;
+  
+  // Click state management for left frame clicks
+  let clickState = 'idle'; // 'idle', 'start_placed', 'end_placed'
+  
+  // Panel visibility state
+  let panelsVisible = true;
   
   // Live mode variables
   let latestFrameBitmapLeft = null;
@@ -607,18 +654,21 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     measurementUI.onStartMarkerRequested = () => {
       if (latestPose) {
         arRulerSystem.placeStartMarker(latestPose);
+        clickState = 'start_placed'; // Update click state when button is used
       }
     };
     
     measurementUI.onEndMeasurementRequested = () => {
       if (latestPose) {
         const finalDistance = arRulerSystem.placeEndMarker(latestPose);
+        clickState = 'end_placed'; // Update click state when button is used
         console.log('Final measurement completed:', finalDistance.toFixed(3), 'meters');
       }
     };
     
     measurementUI.onResetRequested = () => {
       arRulerSystem.resetMeasurement();
+      clickState = 'idle'; // Reset click state when reset button is clicked
     };
     
     measurementUI.onDrawPlaneRequested = () => {
@@ -646,6 +696,54 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     document.body.appendChild(stats.el);
 
     document.body.addEventListener("click", () => alva.reset(), false);
+    
+    // Add click handler for left frame overlay
+    const leftFrameOverlay = document.getElementById('left-frame-click-overlay');
+    if (leftFrameOverlay) {
+      leftFrameOverlay.addEventListener('click', (event) => {
+        event.stopPropagation(); // Prevent body click from triggering alva.reset()
+        
+        if (!latestPose) {
+          console.log('No valid pose available for marker placement');
+          return;
+        }
+        
+        console.log('Left frame clicked, current state:', clickState);
+        
+        switch (clickState) {
+          case 'idle':
+            // 1st click: Place start marker
+            console.log('Placing start marker...');
+            arRulerSystem.placeStartMarker(latestPose);
+            clickState = 'start_placed';
+            if (measurementUI) {
+              measurementUI.updateStatus('Start marker placed - click to place end marker');
+            }
+            break;
+            
+          case 'start_placed':
+            // 2nd click: Place end marker
+            console.log('Placing end marker...');
+            const finalDistance = arRulerSystem.placeEndMarker(latestPose);
+            clickState = 'end_placed';
+            if (measurementUI) {
+              measurementUI.updateStatus(`Measurement complete: ${finalDistance.toFixed(3)}m`);
+            }
+            console.log('Final measurement completed:', finalDistance.toFixed(3), 'meters');
+            break;
+            
+          case 'end_placed':
+            // 3rd click: Clear all markers
+            console.log('Clearing all markers...');
+            arRulerSystem.resetMeasurement();
+            clickState = 'idle';
+            if (measurementUI) {
+              measurementUI.updateStatus('Place start marker');
+            }
+            break;
+        }
+      });
+    }
 
     let latestPose = null;
     let firstFrame = true;
@@ -700,6 +798,9 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       if (measurementUI) {
         measurementUI.reset();
       }
+      
+      // Reset click state
+      clickState = 'idle';
       
       // Clear pose tracking
       firstFrame = true;
@@ -1245,10 +1346,10 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         container.style.display = 'block';
       }
       if (measurementPanel) {
-        measurementPanel.style.display = 'flex';
+        measurementPanel.style.display = panelsVisible ? 'flex' : 'none';
       }
       if (visualizerPanel) {
-        visualizerPanel.style.display = 'block';
+        visualizerPanel.style.display = panelsVisible ? 'block' : 'none';
       }
       
       demoStream();

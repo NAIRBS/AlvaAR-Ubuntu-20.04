@@ -158,6 +158,18 @@ html, body {
   transform: translateY(-50%);
 }
 
+#left-frame-click-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 640px; /* Left frame width */
+  height: 480px; /* Left frame height */
+  z-index: 1001; /* Above crosshair but below other UI elements */
+  cursor: pointer;
+  background: transparent;
+  /* Invisible but clickable */
+}
+
 #marker-distance-control {
   margin: 0 0 15px 0;
   padding: 8px;
@@ -351,6 +363,51 @@ canvas {
   padding: 12px 18px;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+#video-selection-top {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 6px;
+  border: 1px solid #555;
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#toggle-panels {
+  background: #007bff;
+  color: white;
+  border: 1px solid #0056b3;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#toggle-panels:hover {
+  background: #0056b3;
+  transform: scale(1.05);
+}
+
+#toggle-panels.panels-hidden {
+  background: #6c757d;
+  border-color: #5a6268;
+}
+
+#toggle-panels.panels-hidden:hover {
+  background: #5a6268;
 }
 
 @keyframes fadeIn {
