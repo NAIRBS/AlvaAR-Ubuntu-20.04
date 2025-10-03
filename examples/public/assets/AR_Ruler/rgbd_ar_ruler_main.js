@@ -2,9 +2,52 @@
 import { MONOCULAR_SCALE_FACTOR, waitForEmscriptenModule, parseCalibrationYAML, drawPlaneOutlineOnFrame, ARRulerSystem } from './rgbd_ar_ruler_script.js';
 import { ARRulerVisualizer, MeasurementUI } from './rgbd_ar_ruler_classes.js';
 
+// Mobile detection function
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+         (window.innerWidth <= 768 && window.innerHeight <= 1024);
+}
+
+// Enforce horizontal view for mobile
+function enforceHorizontalView() {
+  if (isMobileDevice()) {
+    // Lock screen orientation to landscape
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(err => {
+        console.log('Could not lock orientation:', err);
+      });
+    }
+    
+    // Add CSS to enforce landscape view
+    const style = document.createElement('style');
+    style.textContent = `
+      @media screen and (orientation: portrait) {
+        body::before {
+          content: "Please rotate your device to landscape mode for the best experience";
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: rgba(0, 0, 0, 0.9);
+          color: white;
+          padding: 20px;
+          border-radius: 10px;
+          z-index: 10000;
+          text-align: center;
+          font-size: 18px;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
 // Global variables for video management
 let mediaLeft, mediaRight;
 let sceneVisualizer; // Make sceneVisualizer global so refreshVisualizer can access it
+
+// Panel visibility state - hidden by default on mobile
+let panelsVisible = !isMobileDevice();
 
 // Function to load selected video
 async function loadSelectedVideo(videoType, Video) {
@@ -191,6 +234,9 @@ function refreshVisualizer() {
 }
 
 async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLiveMode = false) {
+  // Enforce horizontal view for mobile devices
+  enforceHorizontalView();
+  
   const $container = document.getElementById('container');
   const $visualizerContainer = document.getElementById('visualizer-panel');
   const $view = document.createElement('div');
@@ -242,9 +288,15 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   // Set up panel toggle functionality
   const togglePanelsBtn = document.getElementById('toggle-panels');
   if (togglePanelsBtn) {
-    // Set initial button state
-    togglePanelsBtn.textContent = '👁️';
-    togglePanelsBtn.title = 'Hide Panels';
+    // Set initial button state based on mobile detection
+    if (panelsVisible) {
+      togglePanelsBtn.textContent = '👁️';
+      togglePanelsBtn.title = 'Hide Panels';
+    } else {
+      togglePanelsBtn.textContent = '❌';
+      togglePanelsBtn.classList.add('panels-hidden');
+      togglePanelsBtn.title = 'Show Panels';
+    }
     
     togglePanelsBtn.addEventListener('click', () => {
       panelsVisible = !panelsVisible;
@@ -289,9 +341,6 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   
   // Click state management for left frame clicks
   let clickState = 'idle'; // 'idle', 'start_placed', 'end_placed'
-  
-  // Panel visibility state
-  let panelsVisible = true;
   
   // Function to show measurement info (3D visualizer only)
   function showMeasurementInfo(startPoint, endPoint, distance) {
@@ -1053,9 +1102,19 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
             }
             hideMeasurementInfo(); // Hide measurement info panel
             break;
-        }
-      });
-    }
+      }
+    });
+  }
+  
+  // Set initial panel visibility based on mobile detection
+  const measurementPanel = document.getElementById('measurement-panel');
+  const visualizerPanel = document.getElementById('visualizer-panel');
+  if (measurementPanel) {
+    measurementPanel.style.display = panelsVisible ? 'flex' : 'none';
+  }
+  if (visualizerPanel) {
+    visualizerPanel.style.display = panelsVisible ? 'block' : 'none';
+  }
 
     let latestPose = null;
     let firstFrame = true;
