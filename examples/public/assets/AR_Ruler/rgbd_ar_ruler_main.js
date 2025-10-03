@@ -271,7 +271,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         if (visualizerPanel) {
           visualizerPanel.style.display = 'none';
         }
-        togglePanelsBtn.textContent = '🙈';
+        togglePanelsBtn.textContent = '❌';
         togglePanelsBtn.classList.add('panels-hidden');
         togglePanelsBtn.title = 'Show Panels';
       }
@@ -292,6 +292,229 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   
   // Panel visibility state
   let panelsVisible = true;
+  
+  // Function to show measurement info (3D visualizer only)
+  function showMeasurementInfo(startPoint, endPoint, distance) {
+    // Only create 3D text display in visualizer
+    create3DMeasurementDisplay(startPoint, endPoint, distance);
+  }
+  
+  // Function to hide measurement info
+  function hideMeasurementInfo() {
+    // Remove 3D text display
+    remove3DMeasurementDisplay();
+  }
+  
+  // 3D measurement display variables
+  let measurement3DText = null;
+  let measurement3DLine = null;
+  
+  // Function to create 3D measurement display
+  function create3DMeasurementDisplay(startPoint, endPoint, distance) {
+    if (!sceneVisualizer) return;
+    
+    // Remove existing 3D measurement display
+    remove3DMeasurementDisplay();
+    
+    // Create 3D text for distance
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.width = 1024;
+    canvas.height = 256;
+    
+    context.fillStyle = '#000000';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#00ff00';
+    context.font = 'Bold 180px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(`${distance.toFixed(3)}m`, canvas.width / 2, canvas.height / 2);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({ 
+      map: texture, 
+      transparent: true, 
+      side: THREE.DoubleSide 
+    });
+    const geometry = new THREE.PlaneGeometry(0.4, 0.16);
+    measurement3DText = new THREE.Mesh(geometry, material);
+    
+    // Position text hovering above the midpoint
+    const midpoint = {
+      x: (startPoint.x + endPoint.x) / 2,
+      y: (startPoint.y + endPoint.y) / 2 + 0.15, // Higher above the line
+      z: (startPoint.z + endPoint.z) / 2
+    };
+    measurement3DText.position.set(midpoint.x, midpoint.y, midpoint.z);
+    sceneVisualizer.scene.add(measurement3DText);
+    
+    // Create 3D line connecting start and end points
+    const points = [
+      new THREE.Vector3(startPoint.x, startPoint.y, startPoint.z),
+      new THREE.Vector3(endPoint.x, endPoint.y, endPoint.z)
+    ];
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    const lineMaterial = new THREE.LineBasicMaterial({ 
+      color: 0x00ff00, 
+      linewidth: 3,
+      transparent: true,
+      opacity: 0.8
+    });
+    measurement3DLine = new THREE.Line(lineGeometry, lineMaterial);
+    sceneVisualizer.scene.add(measurement3DLine);
+    
+    console.log('3D measurement display created');
+  }
+  
+  // Function to remove 3D measurement display
+  function remove3DMeasurementDisplay() {
+    if (sceneVisualizer) {
+      if (measurement3DText) {
+        sceneVisualizer.scene.remove(measurement3DText);
+        if (measurement3DText.geometry) measurement3DText.geometry.dispose();
+        if (measurement3DText.material) measurement3DText.material.dispose();
+        measurement3DText = null;
+      }
+      if (measurement3DLine) {
+        sceneVisualizer.scene.remove(measurement3DLine);
+        if (measurement3DLine.geometry) measurement3DLine.geometry.dispose();
+        if (measurement3DLine.material) measurement3DLine.material.dispose();
+        measurement3DLine = null;
+      }
+    }
+  }
+  
+  // Function to draw measurement info panel on left frame
+  function drawMeasurementInfoOnFrame(ctx, startPoint, endPoint, pose, leftCameraIntrinsics) {
+    console.log('drawMeasurementInfoOnFrame called with:', {startPoint, endPoint, pose: !!pose, leftCameraIntrinsics: !!leftCameraIntrinsics});
+    
+    // Calculate distance
+    const distance = Math.sqrt(
+      Math.pow(endPoint.x - startPoint.x, 2) + 
+      Math.pow(endPoint.y - startPoint.y, 2) + 
+      Math.pow(endPoint.z - startPoint.z, 2)
+    );
+    
+    console.log('Calculated distance:', distance);
+    
+    // Get camera intrinsics
+    let fx = 525, fy = 525, cx = 320, cy = 240;
+    if (leftCameraIntrinsics) {
+      fx = leftCameraIntrinsics.fx;
+      fy = leftCameraIntrinsics.fy;
+      cx = leftCameraIntrinsics.cx;
+      cy = leftCameraIntrinsics.cy;
+    }
+    
+    // Get camera transform from pose for world-to-camera transformation
+    const { position: cameraPosition, direction: cameraDirection } = arRulerSystem.getCameraTransform(pose);
+    const rotationMatrix = new THREE.Matrix4().fromArray(pose);
+    const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+    cameraQuaternion.set(-cameraQuaternion.x, cameraQuaternion.y, cameraQuaternion.z, cameraQuaternion.w);
+    const cameraInverseMatrix = new THREE.Matrix4();
+    cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
+    
+    // Calculate 3D midpoint between start and end points, with slight upward offset to hover above the line
+    const midPoint3D = {
+      x: (startPoint.x + endPoint.x) / 2,
+      y: (startPoint.y + endPoint.y) / 2 + 0.05, // Slight upward offset to hover above the measurement line
+      z: (startPoint.z + endPoint.z) / 2
+    };
+    
+    // Transform 3D midpoint to camera coordinates
+    const midWorld = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
+    const midCamera = midWorld.clone().applyMatrix4(cameraInverseMatrix);
+    
+    // Project 3D midpoint to 2D image coordinates
+    let midX = null, midY = null;
+    
+    if (midCamera.z > 0.1) { // Only if midpoint is in front of camera
+      midX = (midCamera.x * fx / midCamera.z) + cx;
+      midY = (midCamera.y * fy / midCamera.z) + cy;
+    }
+    
+    console.log('3D midpoint projected to:', {midX, midY, midPoint3D});
+    
+    // Only draw if midpoint is visible in camera view
+    if (midX !== null && midY !== null && midX >= 0 && midX < 640 && midY >= 0 && midY < 480) {
+      console.log('3D midpoint visible, drawing panel...');
+      
+      // Panel dimensions - make it larger and more prominent
+      const panelWidth = 280;
+      const panelHeight = 120;
+      const panelX = Math.max(10, Math.min(midX - panelWidth/2, 640 - panelWidth - 10));
+      const panelY = Math.max(10, Math.min(midY - panelHeight/2, 480 - panelHeight - 10));
+      
+      // Draw black background panel with stronger opacity
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+      
+      // Draw border with thicker line
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+      
+      // Draw title
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'Bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('MEASUREMENT', panelX + panelWidth/2, panelY + 10);
+      
+      // Draw distance text - larger and more prominent
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'Bold 32px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + 50);
+      
+      // Draw coordinates with better formatting
+      ctx.font = 'Bold 12px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Start: (${startPoint.x.toFixed(2)}, ${startPoint.y.toFixed(2)}, ${startPoint.z.toFixed(2)})`, 
+                   panelX + 10, panelY + 80);
+      ctx.fillText(`End: (${endPoint.x.toFixed(2)}, ${endPoint.y.toFixed(2)}, ${endPoint.z.toFixed(2)})`, 
+                   panelX + 10, panelY + 100);
+    } else {
+      console.log('Points not visible, drawing fallback panel...');
+      // Fallback: draw panel at fixed position for testing
+      const panelX = 50;
+      const panelY = 50;
+      const panelWidth = 280;
+      const panelHeight = 120;
+      
+      // Draw black background panel
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+      
+      // Draw border
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+      
+      // Draw title
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'Bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText('MEASUREMENT', panelX + panelWidth/2, panelY + 10);
+      
+      // Draw distance text
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'Bold 32px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + 50);
+      
+      // Draw coordinates
+      ctx.font = 'Bold 12px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Start: (${startPoint.x.toFixed(2)}, ${startPoint.y.toFixed(2)}, ${startPoint.z.toFixed(2)})`, 
+                   panelX + 10, panelY + 80);
+      ctx.fillText(`End: (${endPoint.x.toFixed(2)}, ${endPoint.y.toFixed(2)}, ${endPoint.z.toFixed(2)})`, 
+                   panelX + 10, panelY + 100);
+    }
+  }
   
   // Live mode variables
   let latestFrameBitmapLeft = null;
@@ -663,12 +886,16 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         const finalDistance = arRulerSystem.placeEndMarker(latestPose);
         clickState = 'end_placed'; // Update click state when button is used
         console.log('Final measurement completed:', finalDistance.toFixed(3), 'meters');
+        
+        // Show measurement info panel
+        showMeasurementInfo(arRulerSystem.startPoint, arRulerSystem.endPoint, finalDistance);
       }
     };
     
     measurementUI.onResetRequested = () => {
       arRulerSystem.resetMeasurement();
       clickState = 'idle'; // Reset click state when reset button is clicked
+      hideMeasurementInfo(); // Hide measurement info panel
     };
     
     measurementUI.onDrawPlaneRequested = () => {
@@ -730,6 +957,9 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
               measurementUI.updateStatus(`Measurement complete: ${finalDistance.toFixed(3)}m`);
             }
             console.log('Final measurement completed:', finalDistance.toFixed(3), 'meters');
+            
+            // Show measurement info panel
+            showMeasurementInfo(arRulerSystem.startPoint, arRulerSystem.endPoint, finalDistance);
             break;
             
           case 'end_placed':
@@ -740,6 +970,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
             if (measurementUI) {
               measurementUI.updateStatus('Place start marker');
             }
+            hideMeasurementInfo(); // Hide measurement info panel
             break;
         }
       });
@@ -801,6 +1032,9 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       
       // Reset click state
       clickState = 'idle';
+      
+      // Hide measurement info
+      hideMeasurementInfo();
       
       // Clear pose tracking
       firstFrame = true;
@@ -1293,6 +1527,12 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           // Draw detected plane outline on left frame if plane mode is enabled
           if (arRulerSystem && arRulerSystem.usePlaneMode && arRulerSystem.detectedPlane && pose) {
             drawPlaneOutlineOnFrame(ctx, arRulerSystem.detectedPlane, pose, leftCameraIntrinsics);
+          }
+          
+          // Draw measurement info panel on left frame if measurement is complete
+          if (arRulerSystem && arRulerSystem.startPoint && arRulerSystem.endPoint && pose) {
+            console.log('Drawing measurement info panel...');
+            drawMeasurementInfoOnFrame(ctx, arRulerSystem.startPoint, arRulerSystem.endPoint, pose, leftCameraIntrinsics);
           }
                      } else if (frameLeft) {
           if (isLiveMode && latestFrameBitmapLeft) {
