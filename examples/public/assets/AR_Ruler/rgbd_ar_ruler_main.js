@@ -309,6 +309,10 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   let measurement3DText = null;
   let measurement3DLine = null;
   
+  // Store the current midpoint position for left frame panel
+  let currentMidpoint = null;
+  
+  
   // Function to create 3D measurement display
   function create3DMeasurementDisplay(startPoint, endPoint, distance) {
     if (!sceneVisualizer) return;
@@ -328,7 +332,12 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     context.font = 'Bold 180px Arial';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(`${distance.toFixed(3)}m`, canvas.width / 2, canvas.height / 2);
+    // Show live distance or final distance
+    if (endPoint) {
+      context.fillText(`${distance.toFixed(3)}m`, canvas.width / 2, canvas.height / 2);
+    } else {
+      context.fillText(`LIVE: ${distance.toFixed(3)}m`, canvas.width / 2, canvas.height / 2);
+    }
     
     const texture = new THREE.CanvasTexture(canvas);
     const material = new THREE.MeshBasicMaterial({ 
@@ -339,31 +348,72 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     const geometry = new THREE.PlaneGeometry(0.4, 0.16);
     measurement3DText = new THREE.Mesh(geometry, material);
     
-    // Position text hovering above the midpoint
-    const midpoint = {
-      x: (startPoint.x + endPoint.x) / 2,
-      y: (startPoint.y + endPoint.y) / 2 + 0.15, // Higher above the line
-      z: (startPoint.z + endPoint.z) / 2
-    };
-    measurement3DText.position.set(midpoint.x, midpoint.y, midpoint.z);
+    // Position text at midpoint of measurement line
+    let textPosition;
+    if (endPoint) {
+      // Use actual midpoint between start and end markers
+      textPosition = {
+        x: (startPoint.x + endPoint.x) / 2,
+        y: (startPoint.y + endPoint.y) / 2 + 0.15, // Higher above the line
+        z: (startPoint.z + endPoint.z) / 2
+      };
+    } else {
+      // For live measurements, position will be updated by updateMeasurement method
+      // Use start point as initial position
+      textPosition = {
+        x: startPoint.x,
+        y: startPoint.y + 0.15,
+        z: startPoint.z
+      };
+    }
+    measurement3DText.position.set(textPosition.x, textPosition.y, textPosition.z);
     sceneVisualizer.scene.add(measurement3DText);
     
-    // Create 3D line connecting start and end points
-    const points = [
-      new THREE.Vector3(startPoint.x, startPoint.y, startPoint.z),
-      new THREE.Vector3(endPoint.x, endPoint.y, endPoint.z)
-    ];
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-    const lineMaterial = new THREE.LineBasicMaterial({ 
-      color: 0x00ff00, 
-      linewidth: 3,
-      transparent: true,
-      opacity: 0.8
-    });
-    measurement3DLine = new THREE.Line(lineGeometry, lineMaterial);
-    sceneVisualizer.scene.add(measurement3DLine);
+    // Store the midpoint for left frame panel (without the Y offset)
+    currentMidpoint = {
+      x: textPosition.x,
+      y: textPosition.y - 0.15, // Remove the Y offset to get actual midpoint
+      z: textPosition.z
+    };
+    
+    // Create 3D line connecting start and end points (only if end marker exists)
+    if (endPoint) {
+      const points = [
+        new THREE.Vector3(startPoint.x, startPoint.y, startPoint.z),
+        new THREE.Vector3(endPoint.x, endPoint.y, endPoint.z)
+      ];
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+      const lineMaterial = new THREE.LineBasicMaterial({ 
+        color: 0x00ff00, 
+        linewidth: 3,
+        transparent: true,
+        opacity: 0.8
+      });
+      measurement3DLine = new THREE.Line(lineGeometry, lineMaterial);
+      sceneVisualizer.scene.add(measurement3DLine);
+    }
     
     console.log('3D measurement display created');
+  }
+  
+  // Function to update 3D text position for live measurements
+  function update3DTextPosition(startPoint, currentEndPoint) {
+    if (measurement3DText && sceneVisualizer) {
+      // Calculate midpoint between start marker and current position
+      const textPosition = {
+        x: (startPoint.x + currentEndPoint.x) / 2,
+        y: (startPoint.y + currentEndPoint.y) / 2 + 0.15, // Higher above the line
+        z: (startPoint.z + currentEndPoint.z) / 2
+      };
+      measurement3DText.position.set(textPosition.x, textPosition.y, textPosition.z);
+      
+      // Store the midpoint for left frame panel (without the Y offset)
+      currentMidpoint = {
+        x: textPosition.x,
+        y: textPosition.y - 0.15, // Remove the Y offset to get actual midpoint
+        z: textPosition.z
+      };
+    }
   }
   
   // Function to remove 3D measurement display
@@ -381,10 +431,22 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         if (measurement3DLine.material) measurement3DLine.material.dispose();
         measurement3DLine = null;
       }
+      // Clear stored midpoint
+      currentMidpoint = null;
     }
   }
   
-  // Function to draw measurement info panel on left frame
+  
+  // Function to get 3D world midpoint of measurement line
+  function getMeasurementMidpoint(startPoint, endPoint) {
+    return {
+      x: (startPoint.x + endPoint.x) / 2,
+      y: (startPoint.y + endPoint.y) / 2 + 0.05, // Slight upward offset to hover above the measurement line
+      z: (startPoint.z + endPoint.z) / 2
+    };
+  }
+
+  // Function to draw measurement info panel on left frame (using same logic as markers)
   function drawMeasurementInfoOnFrame(ctx, startPoint, endPoint, pose, leftCameraIntrinsics) {
     console.log('drawMeasurementInfoOnFrame called with:', {startPoint, endPoint, pose: !!pose, leftCameraIntrinsics: !!leftCameraIntrinsics});
     
@@ -392,127 +454,142 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     const distance = Math.sqrt(
       Math.pow(endPoint.x - startPoint.x, 2) + 
       Math.pow(endPoint.y - startPoint.y, 2) + 
-      Math.pow(endPoint.z - startPoint.z, 2)
+      Math.pow(endPoint.z - endPoint.z, 2)
     );
     
     console.log('Calculated distance:', distance);
     
-    // Get camera intrinsics
-    let fx = 525, fy = 525, cx = 320, cy = 240;
+    // Get 3D world midpoint of measurement line
+    const midPoint3D = getMeasurementMidpoint(startPoint, endPoint);
+    console.log('3D world midpoint:', midPoint3D);
+    
+    // Use the EXACT same logic as start/end markers
+    // Get camera transform from pose for world-to-camera transformation
+    const { position: cameraPosition, direction: cameraDirection } = arRulerSystem.getCameraTransform(pose);
+
+    // Create camera quaternion from pose matrix with AlvaAR coordinate transformation
+    const rotationMatrix = new THREE.Matrix4().fromArray(pose);
+    const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
+    cameraQuaternion.set(-cameraQuaternion.x, cameraQuaternion.y, cameraQuaternion.z, cameraQuaternion.w);
+
+    // Create world-to-camera transformation matrix (inverse of camera pose)
+    const cameraInverseMatrix = new THREE.Matrix4();
+    cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
+
+    // Get camera intrinsics for marker projection
+    let fx = 525, fy = 525, cx = 320, cy = 240; // Default fallback values
+    
     if (leftCameraIntrinsics) {
       fx = leftCameraIntrinsics.fx;
       fy = leftCameraIntrinsics.fy;
       cx = leftCameraIntrinsics.cx;
       cy = leftCameraIntrinsics.cy;
     }
+
+    // Transform world coordinates to camera coordinates (same as markers)
+    const worldPoint = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
+    const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+
+    console.log('=== MEASUREMENT PANEL DEBUG ===');
+    console.log('World midpoint:', midPoint3D);
+    console.log('Camera point:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
+    console.log('Camera intrinsics:', {fx, fy, cx, cy});
+    console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
     
-    // Get camera transform from pose for world-to-camera transformation
-    const { position: cameraPosition, direction: cameraDirection } = arRulerSystem.getCameraTransform(pose);
-    const rotationMatrix = new THREE.Matrix4().fromArray(pose);
-    const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
-    cameraQuaternion.set(-cameraQuaternion.x, cameraQuaternion.y, cameraQuaternion.z, cameraQuaternion.w);
-    const cameraInverseMatrix = new THREE.Matrix4();
-    cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
-    
-    // Calculate 3D midpoint between start and end points, with slight upward offset to hover above the line
-    const midPoint3D = {
-      x: (startPoint.x + endPoint.x) / 2,
-      y: (startPoint.y + endPoint.y) / 2 + 0.05, // Slight upward offset to hover above the measurement line
-      z: (startPoint.z + endPoint.z) / 2
-    };
-    
-    // Transform 3D midpoint to camera coordinates
-    const midWorld = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
-    const midCamera = midWorld.clone().applyMatrix4(cameraInverseMatrix);
-    
-    // Project 3D midpoint to 2D image coordinates
-    let midX = null, midY = null;
-    
-    if (midCamera.z > 0.1) { // Only if midpoint is in front of camera
-      midX = (midCamera.x * fx / midCamera.z) + cx;
-      midY = (midCamera.y * fy / midCamera.z) + cy;
-    }
-    
-    console.log('3D midpoint projected to:', {midX, midY, midPoint3D});
-    
-    // Only draw if midpoint is visible in camera view
-    if (midX !== null && midY !== null && midX >= 0 && midX < 640 && midY >= 0 && midY < 480) {
-      console.log('3D midpoint visible, drawing panel...');
+    // Test panel removed - drawing code confirmed working
+
+    // Project camera coordinates to 2D image coordinates using pinhole camera model
+    if (cameraPoint.z > 0.1) { // Only points in front of camera
+      const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
+      const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
       
-      // Panel dimensions - make it larger and more prominent
-      const panelWidth = 280;
-      const panelHeight = 120;
-      const panelX = Math.max(10, Math.min(midX - panelWidth/2, 640 - panelWidth - 10));
-      const panelY = Math.max(10, Math.min(midY - panelHeight/2, 480 - panelHeight - 10));
+      console.log('Projected coordinates:', {x, y});
+      console.log('Bounds check:', {x: x, y: y, inBounds: x >= 0 && x < 640 && y >= 0 && y < 480});
       
-      // Draw black background panel with stronger opacity
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-      ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
-      
-      // Draw border with thicker line
-      ctx.strokeStyle = '#00ff00';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
-      
-      // Draw title
-      ctx.fillStyle = '#00ff00';
-      ctx.font = 'Bold 16px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText('MEASUREMENT', panelX + panelWidth/2, panelY + 10);
-      
-      // Draw distance text - larger and more prominent
-      ctx.fillStyle = '#00ff00';
-      ctx.font = 'Bold 32px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + 50);
-      
-      // Draw coordinates with better formatting
-      ctx.font = 'Bold 12px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Start: (${startPoint.x.toFixed(2)}, ${startPoint.y.toFixed(2)}, ${startPoint.z.toFixed(2)})`, 
-                   panelX + 10, panelY + 80);
-      ctx.fillText(`End: (${endPoint.x.toFixed(2)}, ${endPoint.y.toFixed(2)}, ${endPoint.z.toFixed(2)})`, 
-                   panelX + 10, panelY + 100);
+      // Only draw if within image bounds (same as markers)
+      if (x >= 0 && x < 640 && y >= 0 && y < 480) {
+        console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
+        
+        // Panel dimensions
+        const panelWidth = 200;
+        const panelHeight = 80;
+        const panelX = x - panelWidth / 2;
+        const panelY = y - panelHeight / 2;
+        
+        console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
+        
+        // Draw black background panel
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+        
+        // Draw green border
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+        
+        // Draw distance text
+        ctx.fillStyle = '#00ff00';
+        ctx.font = 'Bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
+        
+        console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
+      } else {
+        console.log('❌ 3D midpoint outside image bounds:', {x, y, bounds: '640x480'});
+        console.log('🔄 Drawing fallback measurement panel...');
+        
+        // Fallback: draw panel at fixed position
+        const fallbackX = 100;
+        const fallbackY = 100;
+        const fallbackWidth = 200;
+        const fallbackHeight = 80;
+        
+        // Draw black background panel
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
+        
+        // Draw green border
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
+        
+        // Draw distance text
+        ctx.fillStyle = '#00ff00';
+        ctx.font = 'Bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${distance.toFixed(3)}m`, fallbackX + fallbackWidth/2, fallbackY + fallbackHeight/2);
+        
+        console.log('🔄 Fallback panel drawn at:', {fallbackX, fallbackY, fallbackWidth, fallbackHeight});
+      }
     } else {
-      console.log('Points not visible, drawing fallback panel...');
-      // Fallback: draw panel at fixed position for testing
-      const panelX = 50;
-      const panelY = 50;
-      const panelWidth = 280;
-      const panelHeight = 120;
+      console.log('❌ 3D midpoint behind camera:', {z: cameraPoint.z});
+      console.log('🔄 Drawing fallback measurement panel...');
+      
+      // Fallback: draw panel at fixed position
+      const fallbackX = 100;
+      const fallbackY = 100;
+      const fallbackWidth = 200;
+      const fallbackHeight = 80;
       
       // Draw black background panel
       ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-      ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+      ctx.fillRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
       
-      // Draw border
+      // Draw green border
       ctx.strokeStyle = '#00ff00';
       ctx.lineWidth = 3;
-      ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
-      
-      // Draw title
-      ctx.fillStyle = '#00ff00';
-      ctx.font = 'Bold 16px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText('MEASUREMENT', panelX + panelWidth/2, panelY + 10);
+      ctx.strokeRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
       
       // Draw distance text
       ctx.fillStyle = '#00ff00';
-      ctx.font = 'Bold 32px Arial';
+      ctx.font = 'Bold 24px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + 50);
+      ctx.fillText(`${distance.toFixed(3)}m`, fallbackX + fallbackWidth/2, fallbackY + fallbackHeight/2);
       
-      // Draw coordinates
-      ctx.font = 'Bold 12px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Start: (${startPoint.x.toFixed(2)}, ${startPoint.y.toFixed(2)}, ${startPoint.z.toFixed(2)})`, 
-                   panelX + 10, panelY + 80);
-      ctx.fillText(`End: (${endPoint.x.toFixed(2)}, ${endPoint.y.toFixed(2)}, ${endPoint.z.toFixed(2)})`, 
-                   panelX + 10, panelY + 100);
+      console.log('🔄 Fallback panel drawn at:', {fallbackX, fallbackY, fallbackWidth, fallbackHeight});
     }
   }
   
@@ -878,6 +955,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       if (latestPose) {
         arRulerSystem.placeStartMarker(latestPose);
         clickState = 'start_placed'; // Update click state when button is used
+        
+        // Live measurement will be handled by updateMeasurement in render loop
       }
     };
     
@@ -946,6 +1025,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
             if (measurementUI) {
               measurementUI.updateStatus('Start marker placed - click to place end marker');
             }
+            
+            // Live measurement will be handled by updateMeasurement in render loop
             break;
             
           case 'start_placed':
@@ -1290,6 +1371,19 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           if (pose) {
             latestPose = pose;
             
+            // Update live measurement display if only start marker is placed
+            if (arRulerSystem && arRulerSystem.startPoint && !arRulerSystem.endPoint) {
+              // Use AR Ruler system's updateMeasurement method for accurate live measurements
+              arRulerSystem.updateMeasurement(pose);
+              
+              // Update 3D text position to midpoint for live measurements
+              const { position: cameraPosition } = arRulerSystem.getCameraTransform(pose);
+              const markerDistance = arRulerSystem.ui ? arRulerSystem.ui.getMarkerDistance() : 0.0;
+              const { direction } = arRulerSystem.getCameraTransform(pose);
+              const currentEndPoint = arRulerSystem.raycastToWorld(cameraPosition, direction, 10.0, markerDistance);
+              update3DTextPosition(arRulerSystem.startPoint, currentEndPoint);
+            }
+            
             // Apply MONOCULAR_SCALE_FACTOR to pose translation for right visualizer
             const scaledPose = [...pose]; // Create a copy of the pose array
             if (MONOCULAR_SCALE_FACTOR !== 1.0) {
@@ -1522,6 +1616,118 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 }
               }
             }
+
+            // Draw live measurement panel if start marker exists
+            if (arRulerSystem.startPoint) {
+              console.log('Drawing measurement info panel...');
+              
+              // Get distance from UI (which is updated by updateMeasurement method)
+              let distance = 0;
+              if (arRulerSystem.ui && arRulerSystem.ui.distanceDisplay) {
+                const distanceText = arRulerSystem.ui.distanceDisplay.textContent;
+                const distanceMatch = distanceText.match(/(\d+\.?\d*)/);
+                if (distanceMatch) {
+                  distance = parseFloat(distanceMatch[1]);
+                }
+              }
+              
+              // Use the stored midpoint from 3D visualizer and convert to camera coordinates
+              let midPoint3D;
+              if (arRulerSystem.endPoint) {
+                // Final measurement: use stored midpoint between start and end markers
+                if (currentMidpoint) {
+                  midPoint3D = {
+                    x: currentMidpoint.x,
+                    y: currentMidpoint.y + 0.05, // Slight upward offset for panel
+                    z: currentMidpoint.z
+                  };
+                } else {
+                  // Fallback to calculated midpoint
+                  midPoint3D = {
+                    x: (arRulerSystem.startPoint.x + arRulerSystem.endPoint.x) / 2,
+                    y: (arRulerSystem.startPoint.y + arRulerSystem.endPoint.y) / 2 + 0.05,
+                    z: (arRulerSystem.startPoint.z + arRulerSystem.endPoint.z) / 2
+                  };
+                }
+              } else {
+                // Live measurement: hover over the end of the measurement line (camera position)
+                const { position: cameraPosition } = arRulerSystem.getCameraTransform(pose);
+                const markerDistance = arRulerSystem.ui ? arRulerSystem.ui.getMarkerDistance() : 0.0;
+                const { direction } = arRulerSystem.getCameraTransform(pose);
+                const currentEndPoint = arRulerSystem.raycastToWorld(cameraPosition, direction, 10.0, markerDistance);
+                
+                midPoint3D = {
+                  x: currentEndPoint.x,
+                  y: currentEndPoint.y + 0.05, // Slight upward offset for panel
+                  z: currentEndPoint.z
+                };
+              }
+              
+              // Convert world coordinates to camera coordinates
+              const worldPoint = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
+              const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+              
+              console.log('=== LIVE MEASUREMENT PANEL DEBUG ===');
+              console.log('World midpoint:', midPoint3D);
+              console.log('Camera midpoint:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
+              console.log('Distance:', distance);
+              console.log('Has end marker:', !!arRulerSystem.endPoint);
+              
+              // Debug: Start marker transformation
+              const startWorldPoint = new THREE.Vector3(arRulerSystem.startPoint.x, arRulerSystem.startPoint.y, arRulerSystem.startPoint.z);
+              const startCameraPoint = startWorldPoint.clone().applyMatrix4(cameraInverseMatrix);
+              console.log('Start marker camera coords:', {x: startCameraPoint.x, y: startCameraPoint.y, z: startCameraPoint.z});
+              
+              // Negate z-axis to flip behind camera to front of camera
+              cameraPoint.z = -cameraPoint.z;
+              console.log('Negated z-axis:', {originalZ: -cameraPoint.z, newZ: cameraPoint.z});
+              
+              console.log('Midpoint camera coords:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
+              console.log('Camera intrinsics:', {fx, fy, cx, cy});
+              console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
+              
+              // Project camera coordinates to 2D image coordinates using pinhole camera model
+              if (cameraPoint.z > 0.1) { // Only points in front of camera
+                const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
+                const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
+                
+                console.log('Projected coordinates:', {x, y});
+                console.log('Bounds check:', {x: x, y: y, inBounds: x >= 0 && x < 640 && y >= 0 && y < 480});
+                
+                // Only draw if within image bounds (same as markers)
+                if (x >= 0 && x < 640 && y >= 0 && y < 480) {
+                  console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
+                  
+                  // Panel dimensions - smaller panel
+                  const panelWidth = 120;
+                  const panelHeight = 50;
+                  const panelX = x - panelWidth / 2;
+                  const panelY = y - panelHeight / 2;
+                  
+                  console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
+                  
+                  // Draw black background panel
+                  ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+                  ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+                  
+                  // Draw green border
+                  ctx.strokeStyle = '#00ff00';
+                  ctx.lineWidth = 3;
+                  ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+                  
+                  // Draw distance text
+                  ctx.fillStyle = '#00ff00';
+                  ctx.font = 'Bold 24px Arial';
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'middle';
+                  ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
+                  
+                  console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
+                } else {
+                  console.log('❌ 3D midpoint outside image bounds:', {x, y, bounds: '640x480'});
+                }
+              }
+            }
           }
 
           // Draw detected plane outline on left frame if plane mode is enabled
@@ -1529,11 +1735,6 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
             drawPlaneOutlineOnFrame(ctx, arRulerSystem.detectedPlane, pose, leftCameraIntrinsics);
           }
           
-          // Draw measurement info panel on left frame if measurement is complete
-          if (arRulerSystem && arRulerSystem.startPoint && arRulerSystem.endPoint && pose) {
-            console.log('Drawing measurement info panel...');
-            drawMeasurementInfoOnFrame(ctx, arRulerSystem.startPoint, arRulerSystem.endPoint, pose, leftCameraIntrinsics);
-          }
                      } else if (frameLeft) {
           if (isLiveMode && latestFrameBitmapLeft) {
             ctx.drawImage(latestFrameBitmapLeft, 0, 0, image_width, image_height);
