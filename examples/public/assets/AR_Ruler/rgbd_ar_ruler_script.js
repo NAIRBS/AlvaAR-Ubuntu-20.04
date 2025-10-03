@@ -2,9 +2,7 @@
 import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
 
 // Centralized monocular scale factor for AR ruler measurements
-// V1-01 Easy dataset has 2.73x larger baseline (52.404 vs 19.202267 pixels)
-// This means stereo triangulation is more accurate, so scale factor should be adjusted
-export const MONOCULAR_SCALE_FACTOR = 1; // Baseline ratio: 52.404/19.202267 ≈ 2.73
+export const MONOCULAR_SCALE_FACTOR = 1; 
 // Note: Scale factor may need adjustment based on actual performance testing
 
 export async function waitForEmscriptenModule(ModuleInstance) {
@@ -244,12 +242,12 @@ export class ARRulerSystem {
     let bestInliers = [];
     let maxInlierCount = 0;
 
-    // Apply coordinate transformation to match the system
-    const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
+    // Apply the SAME coordinate transformation as the camera to maintain consistency
+    // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
     const transformedPoints = points3D.map(point3D => new THREE.Vector3(
-      point3D.x * monocularScaleFactor,
-      -point3D.y * monocularScaleFactor,
-      -point3D.z * monocularScaleFactor
+      point3D.x,
+      -point3D.y,
+      -point3D.z
     ));
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -309,11 +307,12 @@ export class ARRulerSystem {
       return null;
     }
 
-    const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
+    // Apply the SAME coordinate transformation as the camera to maintain consistency
+    // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
     const transformedPoints = points3D.map(point3D => new THREE.Vector3(
-      point3D.x * monocularScaleFactor,
-      -point3D.y * monocularScaleFactor,
-      -point3D.z * monocularScaleFactor
+      point3D.x,
+      -point3D.y,
+      -point3D.z
     ));
 
     let bestPlane = null;
@@ -440,11 +439,12 @@ export class ARRulerSystem {
 
     // Analyze point distribution
     if (points3D.length > 0) {
-      const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
+      // Apply the SAME coordinate transformation as the camera to maintain consistency
+      // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
       const transformedPoints = points3D.map(point3D => new THREE.Vector3(
-        point3D.x * monocularScaleFactor,
-        -point3D.y * monocularScaleFactor,
-        -point3D.z * monocularScaleFactor
+        point3D.x,
+        -point3D.y,
+        -point3D.z
       ));
       
       // Calculate point statistics
@@ -604,7 +604,7 @@ export class ARRulerSystem {
   }
 
   // Calculate distance to nearest environment point along the crosshair direction
-  calculateNearestDistance(cameraPosition, cameraDirection, maxDistance = 1.0) {
+  calculateNearestDistance(cameraPosition, cameraDirection, maxDistance = 10.0) {
     // Create a ray from camera position in camera direction
     const rayOrigin = cameraPosition.clone();
     const rayDirection = cameraDirection.clone();
@@ -633,38 +633,54 @@ export class ARRulerSystem {
     }
     
     let nearestDistance = Infinity;
+    let nearestPoint = null;
+    let bestRayAlignment = Infinity;
     
-    // Find the nearest 3D point along the raycasted center direction
+    // IMPROVED ALGORITHM: Prioritize ray alignment over distance for better marker placement
     for (const point3D of points3D) {
-      // Apply the same coordinate transformation as used for feature points
-      const monocularScaleFactor = MONOCULAR_SCALE_FACTOR;
-      const transformedPoint = new THREE.Vector3(
-        point3D.x * monocularScaleFactor, 
-        -point3D.y * monocularScaleFactor, 
-        -point3D.z * monocularScaleFactor
-      );
+      // Apply the SAME coordinate transformation as the camera to maintain consistency
+      // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
+      const transformedPoint = new THREE.Vector3(point3D.x, -point3D.y, -point3D.z);
       
       // Calculate distance from camera to this point
       const distanceFromCamera = transformedPoint.distanceTo(rayOrigin);
       
-      // Only consider points in front of the camera and within max distance
+      // Only consider points in front of the camera (not behind)
       const pointToRayOrigin = transformedPoint.clone().sub(rayOrigin);
       const projectionLength = pointToRayOrigin.dot(rayDirection);
       
-      // Check if point is in front of camera and within max distance
-      if (projectionLength > 0.1 && distanceFromCamera < maxDistance) {
+      // Check if point is in front of camera (projectionLength > 0)
+      if (projectionLength > 0.01) { // Reduced from 0.1 to 0.01 for more sensitivity
         // Calculate the perpendicular distance from the point to the ray line
         // This gives us how close the point is to the raycasted center direction
         const closestPointOnRay = rayOrigin.clone().add(rayDirection.clone().multiplyScalar(projectionLength));
         const perpendicularDistance = transformedPoint.distanceTo(closestPointOnRay);
         
-        // Only consider points that are close to the ray line (within tolerance)
-        const rayTolerance = 0.05; // 5cm tolerance for ray alignment
+        // PRIORITIZE RAY ALIGNMENT: Use stricter tolerance for better alignment
+        const rayTolerance = 0.05 // (5cm tolerance - stricter for better alignment)
+        
         if (perpendicularDistance < rayTolerance) {
-          // This point is along the raycasted center direction, check if it's the nearest
-          if (distanceFromCamera < nearestDistance) {
+          // This point is well-aligned with the ray
+          // PRIORITY: 1) Ray alignment (better alignment is better), 2) Distance (closer is better)
+          const rayAlignmentScore = perpendicularDistance; // Direct perpendicular distance
+          
+          // Check if this is the best point so far
+          // Priority: 1) Ray alignment (smaller perpendicular distance is better), 2) Distance (closer is better)
+          const isBetter = (rayAlignmentScore < bestRayAlignment) || 
+                          (rayAlignmentScore === bestRayAlignment && distanceFromCamera < nearestDistance);
+          
+          if (isBetter) {
             nearestDistance = distanceFromCamera;
-            //console.log('Found point along raycasted center:', distanceFromCamera, 'perpendicular:', perpendicularDistance);
+            nearestPoint = transformedPoint;
+            bestRayAlignment = rayAlignmentScore;
+            
+            if (window.debugCounter % 60 === 0) {
+              console.log('Found better point (ray-aligned):', {
+                distance: distanceFromCamera.toFixed(3),
+                rayAlignment: perpendicularDistance.toFixed(3),
+                score: rayAlignmentScore.toFixed(4)
+              });
+            }
           }
         }
       }
@@ -672,7 +688,13 @@ export class ARRulerSystem {
     
     // Return the nearest distance if found, otherwise fallback
     if (nearestDistance !== Infinity) {
-      //console.log('Found nearest distance:', nearestDistance);
+      if (window.debugCounter % 60 === 0) {
+        console.log('Found ray-aligned point:');
+        console.log('  Distance:', nearestDistance.toFixed(3), 'meters');
+        console.log('  Ray alignment:', bestRayAlignment.toFixed(3), 'meters');
+        console.log('  Point:', nearestPoint);
+        console.log('  Priority: Ray alignment > Distance');
+      }
       return nearestDistance;
     }
     
@@ -681,9 +703,9 @@ export class ARRulerSystem {
     return 2.0;
   }
 
-  // Raycast from camera center to find nearest 3D frame point within 10cm tolerance
+  // Raycast from camera center to find nearest 3D frame point with improved search
   raycastToWorld(cameraPosition, cameraDirection, maxDistance = 10.0, markerDistanceForward = 0.5) {
-    // Use the same distance calculation as the UI display
+    // Use the improved distance calculation that finds the ABSOLUTE nearest point
     const nearestDistance = this.calculateNearestDistance(cameraPosition, cameraDirection, maxDistance);
     
     // Create a ray from camera position in camera direction
@@ -695,8 +717,12 @@ export class ARRulerSystem {
     const markerPosition = raycastPoint.clone().add(rayDirection.clone().multiplyScalar(markerDistanceForward));
     
     if (window.debugCounter % 30 === 0) {
-      console.log('Raycast point:', raycastPoint, 'distance:', nearestDistance.toFixed(3));
-      console.log('Marker position (forward by', markerDistanceForward.toFixed(1), 'm):', markerPosition);
+      console.log('🎯 RAY-ALIGNED MARKER PLACEMENT:');
+      console.log('  Raycast point:', raycastPoint);
+      console.log('  Nearest distance:', nearestDistance.toFixed(3), 'meters');
+      console.log('  Marker forward by:', markerDistanceForward.toFixed(1), 'meters');
+      console.log('  Final marker position:', markerPosition);
+      console.log('  Priority: Ray alignment > Distance for better accuracy');
     }
     
     return markerPosition;

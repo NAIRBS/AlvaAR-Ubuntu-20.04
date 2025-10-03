@@ -60,6 +60,7 @@ class ConstantFPSVideoSaver(Node):
                 '-r', str(self.fps),
                 '-i', '-', 
                 '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p', # Needed for firefox codec compatibility
                 '-preset', 'fast',
                 '-crf', '23',
                 '-movflags', '+faststart',

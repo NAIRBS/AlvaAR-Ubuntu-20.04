@@ -552,7 +552,7 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         // The monocular translation should be scaled to match the stereo baseline
         double mono_translation_norm = Twc_mono.translation().norm();
         if (mono_translation_norm > 1e-6) {
-        // Scale factor = monocular_translation_norm / stereo_baseline
+        // Scale factor = stereo_baseline / monocular_translation_norm
         // This brings the up-to-scale monocular pose down to metric scale
         scale_factor =  stereo_baseline / mono_translation_norm;
             
@@ -585,8 +585,8 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                   << Twc_mono.translation().y() << ", " 
                   << Twc_mono.translation().z() << "]" << std::endl;
         
-        current_pose = Twc_mono;
-        current_pose.translation() *= scale_factor;
+        // CORRECT: Scale the entire pose properly (both rotation and translation)
+        current_pose = Sophus::SE3d(Twc_mono.rotationMatrix(), scale_factor * Twc_mono.translation());
         
         std::cerr << "[StereoSLAM] DEBUG: After scaling - translation: [" 
                   << current_pose.translation().x() << ", " 
@@ -678,8 +678,8 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                     }
                 }
                 
-                t = t * scale_factor;
-                current_pose = Sophus::SE3d(q, t);
+                // CORRECT: Scale the entire pose properly
+                current_pose = Sophus::SE3d(q, scale_factor * t);
                 last_pose = current_pose;
                 
                 // Update frame for compatibility
@@ -694,8 +694,44 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                         // Debug: Log successful tracking
         //std::cerr << "[StereoSLAM] Monocular tracking successful (features: " << tracked_kps_left.size() << ")" << std::endl;
             } else {
-                // If monocular SLAM fails, keep the last pose
-                current_pose = last_pose;
+                // If monocular SLAM fails, try to get pose anyway or use motion model
+                if (status == 2) {
+                    // SLAM reset requested - use identity pose
+                    current_pose = Sophus::SE3d();
+                } else if (status == 3) {
+                    // SLAM not ready for init - keep last pose
+                    current_pose = last_pose;
+                } else {
+                    // Other failure - try to get pose anyway
+                    float pose_data[16];
+                    monocular_system->findCameraPose(leftImagePtr, reinterpret_cast<int>(pose_data));
+                    
+                    // Check if pose data is valid (not all zeros)
+                    bool valid_pose = false;
+                    for (int i = 0; i < 16; i++) {
+                        if (std::abs(pose_data[i]) > 1e-6) {
+                            valid_pose = true;
+                            break;
+                        }
+                    }
+                    
+                    if (valid_pose) {
+                        // Use the pose even if processCameraPose failed
+                        Eigen::Matrix3d R;
+                        R << pose_data[0], pose_data[1], pose_data[2],
+                             pose_data[4], pose_data[5], pose_data[6],
+                             pose_data[8], pose_data[9], pose_data[10];
+                        
+                        Eigen::Vector3d t(pose_data[12], pose_data[13], pose_data[14]);
+                        Eigen::Quaterniond q(R);
+                        
+                        current_pose = Sophus::SE3d(q, scale_factor * t);
+                        last_pose = current_pose;
+                    } else {
+                        // Fallback to last pose
+                        current_pose = last_pose;
+                    }
+                }
                 
                 // Debug: Log tracking failure
                 //std::cerr << "[StereoSLAM] Monocular tracking failed (status: " << status << ")" << std::endl;
@@ -703,6 +739,10 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
         } else {
             // Fallback: keep the last pose if monocular system not available
             current_pose = last_pose;
+            // CORRECT: Scale the entire pose properly if needed
+            if (scale_factor != 1.0) {
+                current_pose = Sophus::SE3d(current_pose.rotationMatrix(), scale_factor * current_pose.translation());
+            }
         }
     }
     
@@ -752,17 +792,17 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                         scale_factor = max_scale;
                     }
                     
-                    t = t * scale_factor;
+                    // CORRECT: Scale the entire pose properly
+                    current_pose = Sophus::SE3d(q, scale_factor * t);
                     
                     //std::cerr << "[StereoSLAM] DEBUG: Monocular-only scale recovery: baseline=" << stereo_baseline 
                     //          << ", mono_norm=" << mono_translation_norm << ", scale_factor=" << scale_factor << std::endl;
                 } else {
                     // Fallback to default scale if monocular translation is too small
-                    t = t * 1.0;
+                    current_pose = Sophus::SE3d(q, t);
                     scale_factor = 1.0;
                     //std::cerr << "[StereoSLAM] WARNING: Monocular translation too small, using default scale" << std::endl;
                 }
-                current_pose = Sophus::SE3d(q, t);
                 last_pose = current_pose;
                 
                 // Update frame for compatibility
@@ -773,13 +813,53 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
                 
                 //std::cerr << "[StereoSLAM] DEBUG: Monocular-only initialization successful (no stereo triangulation)" << std::endl;
             } else {
-                // If monocular SLAM also fails, keep the last pose
-                current_pose = last_pose;
+                // If monocular SLAM also fails, try to get pose anyway
+                if (status == 2) {
+                    // SLAM reset requested - use identity pose
+                    current_pose = Sophus::SE3d();
+                } else if (status == 3) {
+                    // SLAM not ready for init - keep last pose
+                    current_pose = last_pose;
+                } else {
+                    // Other failure - try to get pose anyway
+                    float pose_data[16];
+                    monocular_system->findCameraPose(leftImagePtr, reinterpret_cast<int>(pose_data));
+                    
+                    // Check if pose data is valid (not all zeros)
+                    bool valid_pose = false;
+                    for (int i = 0; i < 16; i++) {
+                        if (std::abs(pose_data[i]) > 1e-6) {
+                            valid_pose = true;
+                            break;
+                        }
+                    }
+                    
+                    if (valid_pose) {
+                        // Use the pose even if processCameraPose failed
+                        Eigen::Matrix3d R;
+                        R << pose_data[0], pose_data[1], pose_data[2],
+                             pose_data[4], pose_data[5], pose_data[6],
+                             pose_data[8], pose_data[9], pose_data[10];
+                        
+                        Eigen::Vector3d t(pose_data[12], pose_data[13], pose_data[14]);
+                        Eigen::Quaterniond q(R);
+                        
+                        current_pose = Sophus::SE3d(q, scale_factor * t);
+                        last_pose = current_pose;
+                    } else {
+                        // Fallback to last pose
+                        current_pose = last_pose;
+                    }
+                }
                 //std::cerr << "[StereoSLAM] DEBUG: Monocular-only initialization failed (status: " << status << ")" << std::endl;
             }
         } else {
-            // No monocular system available, keep last pose
+            // No monocular system available, keep last pose but ensure scale consistency
             current_pose = last_pose;
+            // CORRECT: Scale the entire pose properly if needed
+            if (scale_factor != 1.0) {
+                current_pose = Sophus::SE3d(current_pose.rotationMatrix(), scale_factor * current_pose.translation());
+            }
         }
     }
     // --- Output pose (always update AR object) ---

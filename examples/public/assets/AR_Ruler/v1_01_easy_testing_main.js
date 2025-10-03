@@ -662,9 +662,17 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     function updateSceneVisualizer(pose) {
       if (!sceneVisualizer || !view) return;
       
-      // MONOCULAR POSE: Use pose directly (no scaling needed)
-      // The monocular SLAM pose is already at the correct scale for Three.js
-      view.updateCameraPose(pose);
+      // Apply MONOCULAR_SCALE_FACTOR to pose translation for right visualizer
+      const scaledPose = [...pose]; // Create a copy of the pose array
+      if (MONOCULAR_SCALE_FACTOR !== 1.0) {
+        // Scale the translation components (indices 12, 13, 14)
+        scaledPose[12] *= MONOCULAR_SCALE_FACTOR;
+        scaledPose[13] *= MONOCULAR_SCALE_FACTOR;
+        scaledPose[14] *= MONOCULAR_SCALE_FACTOR;
+      }
+      
+      // Apply scaled pose to right visualizer
+      view.updateCameraPose(scaledPose);
       
       // Debug: Log detailed coordinate information (only occasionally to prevent memory leaks)
       if (window.debugCounter === undefined) window.debugCounter = 0;
@@ -788,12 +796,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         const sphere = new THREE.Mesh(sceneVisualizer.featureGeometry, sceneVisualizer.featureMaterial);
         // Apply the SAME coordinate transformation as the camera to maintain consistency
         // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
-        // SCALE feature points to match monocular pose scale
-        // Feature points come from stereo triangulation (metric scale) but need to match monocular pose scale
-        // V1-01 Easy has 2.73x larger baseline, so stereo points should be more accurate
-        // May need different scale factor than the default MONOCULAR_SCALE_FACTOR
-        const monocularScaleFactor = MONOCULAR_SCALE_FACTOR; // TODO: Test if this needs adjustment for V1-01 Easy baseline
-        sphere.position.set(point3D.x * monocularScaleFactor, -point3D.y * monocularScaleFactor, -point3D.z * monocularScaleFactor);
+        sphere.position.set(point3D.x, -point3D.y, -point3D.z);
         
         sceneVisualizer.scene.add(sphere);
         sceneVisualizer.featurePoints.push(sphere);
@@ -902,8 +905,17 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
             // Export pose data for ground truth comparison
             addPoseToExport(pose);
             
+            // Apply MONOCULAR_SCALE_FACTOR to pose translation for right visualizer
+            const scaledPose = [...pose]; // Create a copy of the pose array
+            if (MONOCULAR_SCALE_FACTOR !== 1.0) {
+              // Scale the translation components (indices 12, 13, 14)
+              scaledPose[12] *= MONOCULAR_SCALE_FACTOR;
+              scaledPose[13] *= MONOCULAR_SCALE_FACTOR;
+              scaledPose[14] *= MONOCULAR_SCALE_FACTOR;
+            }
+            
             // Use the standard ARSimpleView updateCameraPose method like stereo visualizer
-            view.updateCameraPose(pose);
+            view.updateCameraPose(scaledPose);
             
             // Update AR Ruler measurement
             arRulerSystem.updateMeasurement(pose);

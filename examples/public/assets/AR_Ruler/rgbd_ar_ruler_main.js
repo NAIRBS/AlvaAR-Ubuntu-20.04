@@ -2,6 +2,194 @@
 import { MONOCULAR_SCALE_FACTOR, waitForEmscriptenModule, parseCalibrationYAML, drawPlaneOutlineOnFrame, ARRulerSystem } from './rgbd_ar_ruler_script.js';
 import { ARRulerVisualizer, MeasurementUI } from './rgbd_ar_ruler_classes.js';
 
+// Global variables for video management
+let mediaLeft, mediaRight;
+let sceneVisualizer; // Make sceneVisualizer global so refreshVisualizer can access it
+
+// Function to load selected video
+async function loadSelectedVideo(videoType, Video) {
+  console.log('🎬 Loading video type:', videoType);
+  
+  // RELOAD PAGE when changing video selection for complete reset
+  console.log('🔄 Reloading page for new video...');
+  
+  // Store the selected video type in localStorage for persistence
+  localStorage.setItem('selectedVideoType', videoType);
+  
+  // Reload the page to completely reset everything
+  window.location.reload();
+  return; // Exit early since page is reloading
+}
+
+// 🎬 VIDEO CONFIGURATION - ADD NEW VIDEOS HERE ONLY!
+const VIDEO_CONFIG = {
+  'v2_ruler': {
+    leftFile: 'v2_ruler_left_web.mp4',
+    rightFile: 'v2_ruler_right_web.mp4',
+    displayName: 'v2_ruler_left_web.mp4 / v2_ruler_right_web.mp4'
+  },
+  'long_ruler': {
+    leftFile: 'long_ruler_left.mp4',
+    rightFile: 'long_ruler_right.mp4',
+    displayName: 'long_ruler_left.mp4 / long_ruler_right.mp4'
+  }
+};
+
+// Function to update splash screen text based on video selection
+function updateSplashScreenText(videoType) {
+  console.log('🎬 Updating splash screen text for video type:', videoType);
+  
+  const config = VIDEO_CONFIG[videoType] || VIDEO_CONFIG['long_ruler'];
+  const videoText = `RGBD Video AR Ruler - Distance Measurement \\A Using pre-recorded RGBD stereo video \\A (${config.displayName})`;
+  
+  console.log('🎬 Setting splash text to:', videoText);
+  
+  // Remove any existing splash screen style
+  const existingStyle = document.getElementById('splash-screen-style');
+  if (existingStyle) {
+    existingStyle.remove();
+  }
+  
+  // Update the CSS content property
+  const style = document.createElement('style');
+  style.id = 'splash-screen-style';
+  style.textContent = `
+    #overlay::before {
+      content: "${videoText}";
+    }
+  `;
+  document.head.appendChild(style);
+  
+  console.log('📝 Updated splash screen text for:', videoType);
+}
+
+// Function to generate dropdown options dynamically
+function generateVideoDropdownOptions() {
+  const dropdown = document.getElementById('video-dropdown');
+  if (!dropdown) return;
+  
+  // Clear existing options
+  dropdown.innerHTML = '';
+  
+  // Add options from VIDEO_CONFIG
+  Object.entries(VIDEO_CONFIG).forEach(([key, config]) => {
+    const option = document.createElement('option');
+    option.value = key;
+    option.textContent = config.displayName;
+    dropdown.appendChild(option);
+  });
+}
+
+// Function to actually load videos (used after page reload)
+async function loadVideoByType(videoType, Video) {
+  console.log('🎬 Loading video type:', videoType);
+  
+  // Get video configuration
+  const config = VIDEO_CONFIG[videoType];
+  if (!config) {
+    console.warn('Unknown video type:', videoType);
+    return;
+  }
+  
+  // Build video paths
+  const leftVideoPath = `./assets/AR_Ruler/${config.leftFile}`;
+  const rightVideoPath = `./assets/AR_Ruler/${config.rightFile}`;
+  
+  try {
+    // Initialize new videos
+    mediaLeft = await Video.Initialize(leftVideoPath);
+    mediaRight = await Video.Initialize(rightVideoPath);
+    
+    // Start playing
+    mediaLeft.el.play();
+    mediaLeft.el.loop = true;
+    mediaRight.el.play();
+    mediaRight.el.loop = true;
+    
+    console.log('✅ Videos loaded successfully:', leftVideoPath, rightVideoPath);
+    
+    // Set up loop detection for the new videos
+    setupVideoLoopDetection();
+    
+  } catch (error) {
+    console.error('❌ Error loading videos:', error);
+  }
+}
+
+// Function to set up video loop detection
+function setupVideoLoopDetection() {
+  if (!mediaLeft || !mediaLeft.el) return;
+  
+  // Remove existing event listeners
+  mediaLeft.el.removeEventListener('ended', handleVideoLoop);
+  mediaLeft.el.removeEventListener('timeupdate', handleTimeUpdate);
+  
+  // Add new event listeners
+  mediaLeft.el.addEventListener('ended', handleVideoLoop);
+  
+  let lastTimeLeft = 0;
+  let loopDetectedLeft = false;
+  
+  function handleVideoLoop() {
+    console.log('Video looped (ended event) - refreshing visualizer');
+    refreshVisualizer();
+  }
+  
+  function handleTimeUpdate() {
+    const currentTime = mediaLeft.el.currentTime;
+    // Detect if video jumped back to start (loop occurred)
+    if (currentTime < lastTimeLeft && lastTimeLeft > 1.0 && !loopDetectedLeft) {
+      console.log('Video looped (timeupdate detection) - refreshing visualizer');
+      refreshVisualizer();
+      loopDetectedLeft = true;
+    } else if (currentTime > lastTimeLeft) {
+      loopDetectedLeft = false;
+    }
+    lastTimeLeft = currentTime;
+  }
+  
+  mediaLeft.el.addEventListener('timeupdate', handleTimeUpdate);
+}
+
+// Function to refresh/clear the visualizer when video loops
+function refreshVisualizer() {
+  if (!sceneVisualizer) return;
+  
+  console.log('Video looped - resetting everything...');
+  
+  // Clear all feature points
+  if (sceneVisualizer.featurePoints) {
+    for (const point of sceneVisualizer.featurePoints) {
+      sceneVisualizer.scene.remove(point);
+    }
+    sceneVisualizer.featurePoints = [];
+  }
+  
+  // Clear existing plane visualization
+  if (sceneVisualizer.planeWireframeMesh) {
+    sceneVisualizer.scene.remove(sceneVisualizer.planeWireframeMesh);
+    sceneVisualizer.planeWireframeMesh = null;
+  }
+  
+  // Clear existing 3D plane wireframe
+  if (sceneVisualizer.scene3DPlaneWireframeMesh) {
+    sceneVisualizer.scene.remove(sceneVisualizer.scene3DPlaneWireframeMesh);
+    sceneVisualizer.scene3DPlaneWireframeMesh = null;
+  }
+  
+  // Reset feature geometry and material
+  if (sceneVisualizer.featureGeometry) {
+    sceneVisualizer.featureGeometry.dispose();
+    sceneVisualizer.featureGeometry = null;
+  }
+  if (sceneVisualizer.featureMaterial) {
+    sceneVisualizer.featureMaterial.dispose();
+    sceneVisualizer.featureMaterial = null;
+  }
+  
+  console.log('Reset complete');
+}
+
 async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLiveMode = false) {
   const $container = document.getElementById('container');
   const $visualizerContainer = document.getElementById('visualizer-panel');
@@ -12,9 +200,51 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   const $splash = document.getElementById('splash');
   const splashFadeTime = 800;
 
-  let alva, view, stats, sceneVisualizer;
-  let mediaLeft, mediaRight;
+  // Set up video dropdown event listener immediately (before start button)
+  const videoDropdown = document.getElementById('video-dropdown');
+  if (videoDropdown) {
+    // Generate dropdown options dynamically from VIDEO_CONFIG
+    generateVideoDropdownOptions();
+    
+    // Set initial dropdown value and splash screen text
+    const storedVideoType = localStorage.getItem('selectedVideoType');
+    const initialVideoType = storedVideoType || 'long_ruler';
+    
+    console.log('🎬 Initial setup - storedVideoType:', storedVideoType);
+    console.log('🎬 Initial setup - initialVideoType:', initialVideoType);
+    
+    // Set dropdown value
+    videoDropdown.value = initialVideoType;
+    console.log('🎬 Set dropdown value to:', videoDropdown.value);
+    
+    // Update splash screen text
+    updateSplashScreenText(initialVideoType);
+    
+    // Set up event listener for dropdown changes
+    videoDropdown.addEventListener('change', async (event) => {
+      const selectedVideo = event.target.value;
+      console.log('🎬 Video selection changed to:', selectedVideo);
+      console.log('🎬 Current dropdown value:', videoDropdown.value);
+      
+      // Store the selected video type in localStorage for persistence
+      localStorage.setItem('selectedVideoType', selectedVideo);
+      console.log('🎬 Stored in localStorage:', localStorage.getItem('selectedVideoType'));
+      
+      // Update splash screen text immediately
+      updateSplashScreenText(selectedVideo);
+      
+      // Reload the page immediately to apply the new video selection
+      console.log('🔄 Reloading page for new video selection...');
+      window.location.reload();
+    });
+  }
+
+  let alva, view, stats;
   let arRulerSystem, visualizer, measurementUI;
+  
+  // Make AR Ruler System and Measurement UI globally accessible for reset
+  window.arRulerSystem = null;
+  window.measurementUI = null;
   
   // Live mode variables
   let latestFrameBitmapLeft = null;
@@ -214,47 +444,18 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     } else {
       // Video mode: Load pre-recorded videos
       console.log("🎬 Starting video mode");
-      mediaLeft = await Video.Initialize('./assets/AR_Ruler/v2_ruler_left_web.mp4');
-      mediaRight = await Video.Initialize('./assets/AR_Ruler/v2_ruler_right_web.mp4');
-      mediaLeft.el.play();
-      mediaLeft.el.loop = true;
-      mediaRight.el.play();
-      mediaRight.el.loop = true;
       
-      // Only listen to left video loop detection to avoid double resets
-      mediaLeft.el.addEventListener('ended', () => {
-        console.log('Video looped (ended event) - refreshing visualizer');
-        refreshVisualizer();
-      });
+      // Video dropdown is already set up at the beginning of main()
       
-      // Alternative: Listen for 'timeupdate' to detect when video restarts
-      let lastTimeLeft = 0;
-      let loopDetectedLeft = false;
+      // Check for stored video selection or use default
+      const storedVideoType = localStorage.getItem('selectedVideoType');
+      const videoTypeToLoad = storedVideoType || 'long_ruler';
       
-      mediaLeft.el.addEventListener('timeupdate', () => {
-        const currentTime = mediaLeft.el.currentTime;
-        // Detect if video jumped back to start (loop occurred)
-        if (currentTime < lastTimeLeft && lastTimeLeft > 1.0 && !loopDetectedLeft) {
-          console.log('Video looped (timeupdate detection) - refreshing visualizer');
-          loopDetectedLeft = true;
-          refreshVisualizer();
-          // Reset flag after a delay
-          setTimeout(() => { loopDetectedLeft = false; }, 1000);
-        }
-        lastTimeLeft = currentTime;
-      });
+      // Clear the stored selection after reading it
+      localStorage.removeItem('selectedVideoType');
       
-      // Additional: Listen for 'seeking' event which might indicate loop
-      mediaLeft.el.addEventListener('seeking', () => {
-        console.log('Video seeking detected - might be loop');
-        // Add a small delay to check if it's actually a loop
-        setTimeout(() => {
-          if (mediaLeft.el.currentTime < 0.5) {
-            console.log('Video looped (seeking detection) - refreshing visualizer');
-            refreshVisualizer();
-          }
-        }, 100);
-      });
+      // Load the selected video
+      await loadVideoByType(videoTypeToLoad, Video);
     }
 
            // Restrict $view overlay to left image only
@@ -289,6 +490,10 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     arRulerSystem = new ARRulerSystem();
     visualizer = new ARRulerVisualizer(view.scene, sceneVisualizer);
     measurementUI = new MeasurementUI();
+    
+    // Make them globally accessible for reset functionality
+    window.arRulerSystem = arRulerSystem;
+    window.measurementUI = measurementUI;
     
     // Add toggle button for right camera visibility
     const toggleRightCameraBtn = document.getElementById('toggle-right-camera');
@@ -521,9 +726,17 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     function updateSceneVisualizer(pose) {
       if (!sceneVisualizer || !view) return;
       
-      // MONOCULAR POSE: Use pose directly (no scaling needed)
-      // The monocular SLAM pose is already at the correct scale for Three.js
-      view.updateCameraPose(pose);
+      // Apply MONOCULAR_SCALE_FACTOR to pose translation for right visualizer
+      const scaledPose = [...pose]; // Create a copy of the pose array
+      if (MONOCULAR_SCALE_FACTOR !== 1.0) {
+        // Scale the translation components (indices 12, 13, 14)
+        scaledPose[12] *= MONOCULAR_SCALE_FACTOR;
+        scaledPose[13] *= MONOCULAR_SCALE_FACTOR;
+        scaledPose[14] *= MONOCULAR_SCALE_FACTOR;
+      }
+      
+      // Apply scaled pose to right visualizer
+      view.updateCameraPose(scaledPose);
       
       // Debug: Log detailed coordinate information (only occasionally to prevent memory leaks)
       if (window.debugCounter === undefined) window.debugCounter = 0;
@@ -636,10 +849,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         const sphere = new THREE.Mesh(sceneVisualizer.featureGeometry, sceneVisualizer.featureMaterial);
         // Apply the SAME coordinate transformation as the camera to maintain consistency
         // This matches the transformation in AlvaARConnectorTHREE: (x, -y, -z)
-        // SCALE feature points to match monocular pose scale
-        // Feature points come from stereo triangulation (metric scale) but need to match monocular pose scale
-        const monocularScaleFactor = MONOCULAR_SCALE_FACTOR; // Adjust this based on monocular drift - stereo points are much larger than monocular pose
-        sphere.position.set(point3D.x * monocularScaleFactor, -point3D.y * monocularScaleFactor, -point3D.z * monocularScaleFactor);
+        sphere.position.set(point3D.x, -point3D.y, -point3D.z);
         
         sceneVisualizer.scene.add(sphere);
         sceneVisualizer.featurePoints.push(sphere);
@@ -745,8 +955,17 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           if (pose) {
             latestPose = pose;
             
+            // Apply MONOCULAR_SCALE_FACTOR to pose translation for right visualizer
+            const scaledPose = [...pose]; // Create a copy of the pose array
+            if (MONOCULAR_SCALE_FACTOR !== 1.0) {
+              // Scale the translation components (indices 12, 13, 14)
+              scaledPose[12] *= MONOCULAR_SCALE_FACTOR;
+              scaledPose[13] *= MONOCULAR_SCALE_FACTOR;
+              scaledPose[14] *= MONOCULAR_SCALE_FACTOR;
+            }
+            
             // Use the standard ARSimpleView updateCameraPose method like stereo visualizer
-            view.updateCameraPose(pose);
+            view.updateCameraPose(scaledPose);
             
             // Update AR Ruler measurement
             arRulerSystem.updateMeasurement(pose);
