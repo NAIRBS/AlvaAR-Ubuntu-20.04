@@ -855,4 +855,11 @@ export class ARRulerSystem {
       }
     }
   }
+
+  getCurrentDistance() {
+    if (this.measurementMode === 'measuring' && this.startPoint && this.endPoint) {
+      return this.calculateDistance(this.startPoint, this.endPoint) / MONOCULAR_SCALE_FACTOR;
+    }
+    return 0;
+  }
 }

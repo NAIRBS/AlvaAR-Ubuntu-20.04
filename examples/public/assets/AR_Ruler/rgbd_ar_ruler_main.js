@@ -233,7 +233,7 @@ function refreshVisualizer() {
   console.log('Reset complete');
 }
 
-async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLiveMode = false) {
+async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLiveMode = false, PerformanceMonitor = null) {
   // Enforce horizontal view for mobile devices
   enforceHorizontalView();
   
@@ -378,6 +378,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
 
   let alva, view, stats;
   let arRulerSystem, visualizer, measurementUI;
+  let performanceMonitor = null;
   
   // Make AR Ruler System and Measurement UI globally accessible for reset
   window.arRulerSystem = null;
@@ -778,6 +779,13 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   async function demoStream() {
     const ModuleInstance = await Module();
     await waitForEmscriptenModule(ModuleInstance);
+    
+    // Initialize performance monitor if available
+    if (PerformanceMonitor) {
+      performanceMonitor = new PerformanceMonitor();
+      performanceMonitor.init();
+      console.log('Performance monitor initialized');
+    }
     
     // Fetch the YAML file and set it in the WASM module
     const yamlResponse = await fetch('./assets/d345i_640x480.yaml');
@@ -1893,6 +1901,29 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
          ctx.lineWidth = 2;
          ctx.stroke();
       }
+      
+      // Update performance monitor
+      if (performanceMonitor) {
+        let measurementDistance = 0;
+        if (arRulerSystem) {
+          // Try to get distance from the measurement UI if available
+          const distanceDisplay = document.getElementById('distance-display');
+          if (distanceDisplay && distanceDisplay.textContent) {
+            const distanceText = distanceDisplay.textContent;
+            const distanceMatch = distanceText.match(/(\d+\.?\d*)\s*meters?/);
+            if (distanceMatch) {
+              measurementDistance = parseFloat(distanceMatch[1]);
+            }
+          }
+          
+          // Fallback to getCurrentDistance method
+          if (measurementDistance === 0) {
+            measurementDistance = arRulerSystem.getCurrentDistance();
+          }
+        }
+        performanceMonitor.updateFrame(stats, measurementDistance);
+      }
+      
       stats.stop('total');
       stats.render();
       requestAnimationFrame(render);
