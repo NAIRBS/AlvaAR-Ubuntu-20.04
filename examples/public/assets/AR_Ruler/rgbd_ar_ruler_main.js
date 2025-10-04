@@ -237,6 +237,50 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   // Enforce horizontal view for mobile devices
   enforceHorizontalView();
   
+  // Mobile scaling - calculate scale to make video half the display
+  function calculateMobileScale() {
+    const container = document.getElementById('container');
+    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (container && isMobile) {
+      // Get the original video dimensions (640x480)
+      const originalWidth = 640;
+      const originalHeight = 480;
+      
+      // Calculate half the display height (shorter dimension in landscape)
+      const halfDisplayWidth = window.innerWidth * 0.5;
+      
+      // Calculate scale needed to make video width = half display height
+      const scale = halfDisplayWidth / originalWidth;
+      
+      // Apply the calculated scale
+      container.style.transform = `scale(${scale})`;
+      container.style.transformOrigin = 'top left';
+      
+      // Show right frame on mobile by setting showRightCamera to true
+      if (typeof showRightCamera !== 'undefined') {
+        showRightCamera = true;
+        console.log('Mobile: Enabled right camera display');
+      }
+      
+      console.log('Mobile scale applied:', {
+        displayHeight: window.innerHeight,
+        halfDisplayWeight: halfDisplayWidth,
+        originalWidth: originalWidth,
+        calculatedScale: scale,
+        appliedTransform: container.style.transform
+      });
+    } else if (container && !isMobile) {
+      // Reset transform for desktop
+      container.style.transform = '';
+      console.log('Desktop detected - removed mobile scaling');
+    }
+  }
+  
+  // Apply mobile scaling with delay to ensure container exists
+  setTimeout(calculateMobileScale, 500);
+  window.addEventListener('resize', calculateMobileScale);
+  
   const $container = document.getElementById('container');
   const $visualizerContainer = document.getElementById('visualizer-panel');
   const $view = document.createElement('div');
@@ -555,7 +599,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       console.log('Projected coordinates:', {x, y});
       console.log('Bounds check:', {x: x, y: y, inBounds: x >= 0 && x < 640 && y >= 0 && y < 480});
       
-      // Only draw if within image bounds (same as markers)
+      // Only draw if within image bounds (same as markers) - scaled to 50%
       if (x >= 0 && x < 640 && y >= 0 && y < 480) {
         console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
         
@@ -1808,15 +1852,15 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
          }
          if (frameRight) {
           if (isLiveMode && latestFrameBitmapRight) {
-            ctx.drawImage(latestFrameBitmapRight, image_width, 0, image_width, image_height);
+            ctx.drawImage(latestFrameBitmapRight, image_width + spacing, 0, image_width, image_height);
           } else {
-            ctx.putImageData(frameRight, image_width, 0);
+            ctx.putImageData(frameRight, image_width + spacing, 0);
           }
            ctx.fillStyle = "rgba(0,0,0,0.6)";
-           ctx.fillRect(image_width, 0, 120, 25);
+           ctx.fillRect(image_width + spacing, 0, 120, 25);
            ctx.fillStyle = "white";
            ctx.font = "16px Helvetica";
-           ctx.fillText("Right Camera", image_width + 10, 18);
+           ctx.fillText("Right Camera", image_width + spacing + 10, 18);
          }
          ctx.beginPath();
          ctx.moveTo(image_width, 0);
