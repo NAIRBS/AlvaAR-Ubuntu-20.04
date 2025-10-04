@@ -583,11 +583,11 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     const worldPoint = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
     const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
 
-    console.log('=== MEASUREMENT PANEL DEBUG ===');
-    console.log('World midpoint:', midPoint3D);
-    console.log('Camera point:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
-    console.log('Camera intrinsics:', {fx, fy, cx, cy});
-    console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
+    // console.log('=== MEASUREMENT PANEL DEBUG ===');
+    // console.log('World midpoint:', midPoint3D);
+    // console.log('Camera point:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
+    // console.log('Camera intrinsics:', {fx, fy, cx, cy});
+    // console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
     
     // Test panel removed - drawing code confirmed working
 
@@ -601,7 +601,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       
       // Only draw if within image bounds (same as markers) - scaled to 50%
       if (x >= 0 && x < 640 && y >= 0 && y < 480) {
-        console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
+        // console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
         
         // Panel dimensions
         const panelWidth = 200;
@@ -609,7 +609,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         const panelX = x - panelWidth / 2;
         const panelY = y - panelHeight / 2;
         
-        console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
+        // console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
         
         // Draw black background panel
         ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
@@ -621,16 +621,18 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
         
         // Draw distance text
+        ctx.save();
         ctx.fillStyle = '#00ff00';
         ctx.font = 'Bold 24px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
+        ctx.restore();
         
-        console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
+        // console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
       } else {
         console.log('❌ 3D midpoint outside image bounds:', {x, y, bounds: '640x480'});
-        console.log('🔄 Drawing fallback measurement panel...');
+        // console.log('🔄 Drawing fallback measurement panel...');
         
         // Fallback: draw panel at fixed position
         const fallbackX = 100;
@@ -648,13 +650,15 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
         ctx.strokeRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
         
         // Draw distance text
+        ctx.save();
         ctx.fillStyle = '#00ff00';
         ctx.font = 'Bold 24px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${distance.toFixed(3)}m`, fallbackX + fallbackWidth/2, fallbackY + fallbackHeight/2);
+        ctx.restore();
         
-        console.log('🔄 Fallback panel drawn at:', {fallbackX, fallbackY, fallbackWidth, fallbackHeight});
+        // console.log('🔄 Fallback panel drawn at:', {fallbackX, fallbackY, fallbackWidth, fallbackHeight});
       }
     } else {
       console.log('❌ 3D midpoint behind camera:', {z: cameraPoint.z});
@@ -676,11 +680,13 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       ctx.strokeRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
       
       // Draw distance text
+      ctx.save();
       ctx.fillStyle = '#00ff00';
       ctx.font = 'Bold 24px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${distance.toFixed(3)}m`, fallbackX + fallbackWidth/2, fallbackY + fallbackHeight/2);
+      ctx.restore();
       
       console.log('🔄 Fallback panel drawn at:', {fallbackX, fallbackY, fallbackWidth, fallbackHeight});
     }
@@ -959,7 +965,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
        // Let's check what's actually in the DOM
        const measurementPanel = document.getElementById('measurement-panel');
        if (measurementPanel) {
-         console.log('Measurement panel HTML:', measurementPanel.innerHTML);
+         // console.log('Measurement panel HTML:', measurementPanel.innerHTML);
        } else {
          console.error('measurement-panel not found either!');
        }
@@ -1453,10 +1459,14 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
           ctx.fillText("Left Camera (Stereo)", 10, 18);
 
           if (showRightCamera) {
+            // Save context state
+            ctx.save();
             ctx.fillStyle = "rgba(0,0,0,0.6)";
-            ctx.fillRect(image_width + spacing, 0, 120, 25);
+            ctx.fillRect(640, 0, 120, 25);
             ctx.fillStyle = "white";
-            ctx.fillText("Right Camera", image_width + spacing + 10, 18);
+            ctx.fillText("Right Camera", 650, 18);
+            // Restore context state
+            ctx.restore();
           }
           
           stats.stop('video');
@@ -1679,6 +1689,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 
                 // Only draw if within image bounds
                 if (x >= 0 && x < 640 && y >= 0 && y < 480) {
+                  // Save context state before drawing start marker
+                  ctx.save();
                   // Draw green circle for start marker
                   ctx.fillStyle = '#00ff00';
                   ctx.beginPath();
@@ -1689,6 +1701,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                   ctx.strokeStyle = '#ffffff';
                   ctx.lineWidth = 2;
                   ctx.stroke();
+                  // Restore context state after drawing start marker
+                  ctx.restore();
                 }
               }
             }
@@ -1706,6 +1720,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 
                 // Only draw if within image bounds
                 if (x >= 0 && x < 640 && y >= 0 && y < 480) {
+                  // Save context state before drawing end marker
+                  ctx.save();
                   // Draw red circle for end marker
                   ctx.fillStyle = '#ff0000';
                   ctx.beginPath();
@@ -1716,13 +1732,15 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                   ctx.strokeStyle = '#ffffff';
                   ctx.lineWidth = 2;
                   ctx.stroke();
+                  // Restore context state after drawing end marker
+                  ctx.restore();
                 }
               }
             }
 
             // Draw live measurement panel if start marker exists
             if (arRulerSystem.startPoint) {
-              console.log('Drawing measurement info panel...');
+              // console.log('Drawing measurement info panel...');
               
               // Get distance from UI (which is updated by updateMeasurement method)
               let distance = 0;
@@ -1770,36 +1788,36 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
               const worldPoint = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
               const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
               
-              console.log('=== LIVE MEASUREMENT PANEL DEBUG ===');
-              console.log('World midpoint:', midPoint3D);
-              console.log('Camera midpoint:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
-              console.log('Distance:', distance);
-              console.log('Has end marker:', !!arRulerSystem.endPoint);
+              // console.log('=== LIVE MEASUREMENT PANEL DEBUG ===');
+              // console.log('World midpoint:', midPoint3D);
+              // console.log('Camera midpoint:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
+              // console.log('Distance:', distance);
+              // console.log('Has end marker:', !!arRulerSystem.endPoint);
               
               // Debug: Start marker transformation
               const startWorldPoint = new THREE.Vector3(arRulerSystem.startPoint.x, arRulerSystem.startPoint.y, arRulerSystem.startPoint.z);
               const startCameraPoint = startWorldPoint.clone().applyMatrix4(cameraInverseMatrix);
-              console.log('Start marker camera coords:', {x: startCameraPoint.x, y: startCameraPoint.y, z: startCameraPoint.z});
+              // console.log('Start marker camera coords:', {x: startCameraPoint.x, y: startCameraPoint.y, z: startCameraPoint.z});
               
               // Negate z-axis to flip behind camera to front of camera
               cameraPoint.z = -cameraPoint.z;
-              console.log('Negated z-axis:', {originalZ: -cameraPoint.z, newZ: cameraPoint.z});
+              // console.log('Negated z-axis:', {originalZ: -cameraPoint.z, newZ: cameraPoint.z});
               
-              console.log('Midpoint camera coords:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
-              console.log('Camera intrinsics:', {fx, fy, cx, cy});
-              console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
+              // console.log('Midpoint camera coords:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
+              // console.log('Camera intrinsics:', {fx, fy, cx, cy});
+              // console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
               
               // Project camera coordinates to 2D image coordinates using pinhole camera model
               if (cameraPoint.z > 0.1) { // Only points in front of camera
                 const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
                 const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
                 
-                console.log('Projected coordinates:', {x, y});
-                console.log('Bounds check:', {x: x, y: y, inBounds: x >= 0 && x < 640 && y >= 0 && y < 480});
+                // console.log('Projected coordinates:', {x, y});
+                // console.log('Bounds check:', {x: x, y: y, inBounds: x >= 0 && x < 640 && y >= 0 && y < 480});
                 
                 // Only draw if within image bounds (same as markers)
                 if (x >= 0 && x < 640 && y >= 0 && y < 480) {
-                  console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
+                  // console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
                   
                   // Panel dimensions - smaller panel
                   const panelWidth = 120;
@@ -1807,7 +1825,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                   const panelX = x - panelWidth / 2;
                   const panelY = y - panelHeight / 2;
                   
-                  console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
+                  // console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
                   
                   // Draw black background panel
                   ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
@@ -1819,13 +1837,15 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                   ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
                   
                   // Draw distance text
+                  ctx.save();
                   ctx.fillStyle = '#00ff00';
                   ctx.font = 'Bold 24px Arial';
                   ctx.textAlign = 'center';
                   ctx.textBaseline = 'middle';
                   ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
+                  ctx.restore();
                   
-                  console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
+                  // console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
                 } else {
                   console.log('❌ 3D midpoint outside image bounds:', {x, y, bounds: '640x480'});
                 }
@@ -1850,17 +1870,21 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
            ctx.font = "16px Helvetica";
            ctx.fillText("Left Camera", 10, 18);
          }
-         if (frameRight) {
+         if (frameRight && showRightCamera) {
           if (isLiveMode && latestFrameBitmapRight) {
             ctx.drawImage(latestFrameBitmapRight, image_width + spacing, 0, image_width, image_height);
           } else {
             ctx.putImageData(frameRight, image_width + spacing, 0);
           }
-           ctx.fillStyle = "rgba(0,0,0,0.6)";
-           ctx.fillRect(image_width + spacing, 0, 120, 25);
-           ctx.fillStyle = "white";
-           ctx.font = "16px Helvetica";
-           ctx.fillText("Right Camera", image_width + spacing + 10, 18);
+          // Save context state
+          ctx.save();
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(640, 0, 120, 25);
+          ctx.fillStyle = "white";
+          ctx.font = "16px Helvetica";
+          ctx.fillText("Right Camera", 650, 18);
+          // Restore context state
+          ctx.restore();
          }
          ctx.beginPath();
          ctx.moveTo(image_width, 0);
