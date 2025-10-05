@@ -67,14 +67,14 @@ async function loadSelectedVideo(videoType, Video) {
 // 🎬 VIDEO CONFIGURATION - ADD NEW VIDEOS HERE ONLY!
 const VIDEO_CONFIG = {
   'v2_ruler': {
-    leftFile: 'v2_ruler_left_web.mp4',
-    rightFile: 'v2_ruler_right_web.mp4',
-    displayName: 'v2_ruler_left_web.mp4 / v2_ruler_right_web.mp4'
+    leftFile: 'Indoor_Videos/Indoor_Lighted_HF_small_ruler_left.mp4',
+    rightFile: 'Indoor_Videos/Indoor_Lighted_HF_small_ruler_right.mp4',
+    displayName: 'Indoor_Lighted_HF_small_ruler'
   },
   'long_ruler': {
-    leftFile: 'long_ruler_left.mp4',
-    rightFile: 'long_ruler_right.mp4',
-    displayName: 'long_ruler_left.mp4 / long_ruler_right.mp4'
+    leftFile: 'Indoor_Videos/Indoor_Lighted_HF_long_ruler_left.mp4',
+    rightFile: 'Indoor_Videos/Indoor_Lighted_HF_long_ruler_right.mp4',
+    displayName: 'Indoor_Lighted_HF_long_ruler'
   }
 };
 
@@ -83,7 +83,7 @@ function updateSplashScreenText(videoType) {
   console.log('🎬 Updating splash screen text for video type:', videoType);
   
   const config = VIDEO_CONFIG[videoType] || VIDEO_CONFIG['long_ruler'];
-  const videoText = `RGBD Video AR Ruler - Distance Measurement \\A Using pre-recorded RGBD stereo video \\A (${config.displayName})`;
+  const videoText = `RGBD Video AR Ruler - Distance Measurement \\A Using pre-recorded RGBD stereo video \\A (${config.displayName}) \\A \\A 📏 INTERACTIONS: \\A • Click LEFT FRAME first time: Place GREEN start marker \\A • Click LEFT FRAME second time: Place RED end marker \\A • Click LEFT FRAME third time: Clear all \\A \\A 🔄 Auto-loop • 📹 Dropdown for video • 👁️ Eye button for extended UI`;
   
   console.log('🎬 Setting splash text to:', videoText);
   
@@ -99,6 +99,8 @@ function updateSplashScreenText(videoType) {
   style.textContent = `
     #overlay::before {
       content: "${videoText}";
+      font-size: 14px;
+      line-height: 1.4;
     }
   `;
   document.head.appendChild(style);
@@ -783,8 +785,14 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     // Initialize performance monitor if available
     if (PerformanceMonitor) {
       performanceMonitor = new PerformanceMonitor();
+      
+      // Set video name for CSV export
+      const currentVideoType = localStorage.getItem('selectedVideoType') || 'long_ruler';
+      const videoConfig = VIDEO_CONFIG[currentVideoType] || VIDEO_CONFIG['long_ruler'];
+      performanceMonitor.setVideoName(videoConfig.displayName);
+      
       performanceMonitor.init();
-      console.log('Performance monitor initialized');
+      console.log('Performance monitor initialized with video:', videoConfig.displayName);
     }
     
     // Fetch the YAML file and set it in the WASM module
@@ -1921,7 +1929,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
             measurementDistance = arRulerSystem.getCurrentDistance();
           }
         }
-        performanceMonitor.updateFrame(stats, measurementDistance);
+        // Pass ModuleInstance for accurate C++ timing
+        performanceMonitor.updateFrame(stats, measurementDistance, ModuleInstance);
       }
       
       stats.stop('total');

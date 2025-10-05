@@ -12,6 +12,24 @@ The monocular SLAM system in this codebase provides **bare-basics pose estimatio
 - **Bundle adjustment:** Only motion-only BA (Ceres PnP) is used for pose refinement, not full BA over a map.
 - **Scale ambiguity:** As with all monocular pipelines, the scale of the reconstruction is ambiguous.
 
+## Monocular Integration in Stereo SLAM
+
+The stereo SLAM system uses a **hybrid approach** that integrates monocular SLAM for continuous tracking after stereo initialization:
+
+### Hybrid Stereo-Monocular Approach
+
+1. **Stereo Initialization**: Uses stereo camera pair for metric scale recovery
+2. **Monocular Tracking**: Switches to monocular SLAM for continuous pose updates
+3. **Scale Maintenance**: Applies scale factor to maintain metric scale from stereo initialization
+4. **Sequential Processing**: All processing is sequential for WebAssembly compatibility
+
+### Key Integration Points
+
+- **Initialization**: Stereo system provides metric scale and initial pose
+- **Monocular System**: Takes over tracking using only left camera
+- **Scale Factor**: Applied to monocular poses to maintain metric scale
+- **Fallback**: Monocular-only initialization if stereo fails
+
 ---
 
 ## Function Call Chain
@@ -107,6 +125,66 @@ int System::findCameraPose(int imageRGBADataPtr, int posePtr) {
 ```
 
 **Purpose:** Converts image data format and calls the main SLAM processing pipeline.
+
+## Monocular System Integration in Stereo SLAM
+
+### Stereo SLAM Monocular Integration
+
+**File:** `src/slam/src/stereo_slam_interface.cpp`
+```cpp
+// Monocular system initialization after stereo initialization
+if (!monocular_system_initialized) {
+    monocular_system = std::make_unique<System>();
+    monocular_system->configure(width, height, calib.left_.fx_, calib.left_.fy_, 
+                               calib.left_.cx_, calib.left_.cy_, 
+                               calib.left_.k1_, calib.left_.k2_, 
+                               calib.left_.p1_, calib.left_.p2_);
+    monocular_system->setInitialPose(current_pose);
+    monocular_system_initialized = true;
+}
+
+// Monocular tracking after initialization
+if (monocular_system_initialized && monocular_system && tracked_kps_left.size() >= 20) {
+    // Convert left image to format expected by monocular system
+    cv::Mat left_rgba_for_mono(height, width, CV_8UC4, reinterpret_cast<uint8_t*>(leftImagePtr));
+    cv::Mat left_gray_for_mono;
+    cv::cvtColor(left_rgba_for_mono, left_gray_for_mono, cv::COLOR_RGBA2GRAY);
+    
+    // Call monocular SLAM for pose update
+    uint64_t timestamp = duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    int status = monocular_system->processCameraPose(left_gray_for_mono, timestamp);
+    
+    if (status == 1) {
+        // Get pose from monocular system
+        float pose_data[16];
+        monocular_system->findCameraPose(leftImagePtr, reinterpret_cast<int>(pose_data));
+        
+        // Convert and apply scale factor
+        Eigen::Matrix3d R;
+        R << pose_data[0], pose_data[1], pose_data[2],
+             pose_data[4], pose_data[5], pose_data[6],
+             pose_data[8], pose_data[9], pose_data[10];
+        
+        Eigen::Vector3d t(pose_data[12], pose_data[13], pose_data[14]);
+        Eigen::Quaterniond q(R);
+        
+        // Apply scale factor to maintain metric scale
+        current_pose = Sophus::SE3d(q, scale_factor * t);
+        last_pose = current_pose;
+    }
+}
+```
+
+**Purpose:** Integrates monocular SLAM system for continuous tracking after stereo initialization, maintaining metric scale through scale factor application.
+
+### Key Differences from Standalone Monocular SLAM
+
+1. **Scale Factor Application**: Monocular poses are scaled to maintain metric scale from stereo initialization
+2. **Initial Pose Setting**: Monocular system is initialized with stereo-derived pose
+3. **Left Camera Only**: After initialization, only left camera is used for tracking
+4. **Scale Recovery**: Fallback scale recovery using stereo baseline if needed
+5. **Sequential Processing**: All processing is sequential for WebAssembly compatibility
 
 ### 5. Main SLAM Processing
 

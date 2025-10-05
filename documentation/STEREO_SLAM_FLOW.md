@@ -11,6 +11,7 @@ The stereo SLAM system in this codebase provides **metric-scale pose estimation*
 - **Stereo triangulation:** Uses KLT optical flow to match features between left and right images for 3D point reconstruction (initialization only).
 - **Monocular tracking:** After initialization, uses only the left camera with established monocular SLAM pipeline.
 - **Grid-based feature management:** Distributes features evenly across the image using a grid-based approach.
+- **Sequential processing:** All C++ processing is sequential (no multithreading) for WebAssembly compatibility.
 
 ---
 
@@ -134,7 +135,7 @@ if (!calib_loaded) {
 
 **File:** `src/slam/src/stereo_slam_interface.cpp`
 ```cpp
-// 1. Grayscale conversion
+// 1. Grayscale conversion (sequential processing)
 cv::Mat left_rgba(height, width, CV_8UC4, reinterpret_cast<uint8_t*>(leftImagePtr));
 cv::Mat right_rgba(height, width, CV_8UC4, reinterpret_cast<uint8_t*>(rightImagePtr));
 cv::Mat left_gray, right_gray;
@@ -142,17 +143,24 @@ cv::cvtColor(left_rgba, left_gray, cv::COLOR_RGBA2GRAY);
 cv::cvtColor(right_rgba, right_gray, cv::COLOR_RGBA2GRAY);
 ```
 
-**Purpose:** Converts RGBA stereo images to grayscale for feature detection and tracking.
+**Purpose:** Converts RGBA stereo images to grayscale for feature detection and tracking. **Note: Processing is sequential for WebAssembly compatibility.**
 
 ### 7. Temporal KLT Tracking (Left Camera)
 
 **File:** `src/slam/src/stereo_slam_interface.cpp`
 ```cpp
-// 2. Temporal KLT tracking (left)
+// 2. Temporal KLT tracking (left) - Sequential processing
 static cv::Mat prev_left_gray;
 static std::vector<cv::KeyPoint> tracked_kps_left;
 static cv::Mat tracked_desc_left;
 static bool is_first_frame = true;
+
+// Grid-based feature management parameters
+int grid_cell_size = 40; // Same as monocular frameMaxCellSize
+int grid_max_per_cell = 2; // Allow 2 features per cell
+int grid_min_per_cell = 1; // Minimum features per cell
+double grid_quality = FEATURE_QUALITY; // 0.001
+int max_total_kps = 320; // Increased for 640x480 resolution
 
 if (is_first_frame || prev_left_gray.empty()) {
     // First frame: detect features using grid-based approach
@@ -165,6 +173,12 @@ if (is_first_frame || prev_left_gray.empty()) {
             // Add features to tracked_kps_left
         }
     }
+    // Sub-pixel refinement
+    cv::cornerSubPix(left_gray, detected_pts, cv::Size(3,3), cv::Size(-1,-1), 
+                     cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, SUBPIXEL_ACCURACY));
+    // ORB descriptor computation
+    cv::Ptr<cv::ORB> orb = cv::ORB::create((int)tracked_kps_left.size());
+    orb->compute(left_gray, tracked_kps_left, tracked_desc_left);
 } else {
     // Temporal KLT tracking
     std::vector<cv::Point2f> prev_pts, curr_pts;
@@ -172,29 +186,30 @@ if (is_first_frame || prev_left_gray.empty()) {
     
     cv::calcOpticalFlowPyrLK(prev_left_gray, left_gray, prev_pts, curr_pts, 
                              status_fwd, err_fwd, cv::Size(9,9), 3, 
-                             cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01));
+                             cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, SUBPIXEL_ACCURACY));
     
     // Outlier rejection and feature management
     // Grid-based refill for low-coverage cells
+    // Feature filtering and capping
 }
 ```
 
-**Purpose:** Tracks features between consecutive left camera frames using Lucas-Kanade optical flow with grid-based feature management.
+**Purpose:** Tracks features between consecutive left camera frames using Lucas-Kanade optical flow with grid-based feature management. **Note: All processing is sequential for WebAssembly compatibility.**
 
 ### 8. Stereo KLT Matching
 
 **File:** `src/slam/src/stereo_slam_interface.cpp`
 ```cpp
-// Stereo KLT matching (left to right)
+// Stereo KLT matching (left to right) - Sequential processing
 std::vector<cv::Point2f> pts_left, pts_right_tracked;
 for (const auto& kp : tracked_kps_left) pts_left.push_back(kp.pt);
 
 cv::calcOpticalFlowPyrLK(left_gray, right_gray, pts_left, pts_right_tracked, 
                          status, err, cv::Size(9,9), 3, 
-                         cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01));
+                         cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, SUBPIXEL_ACCURACY));
 
 // Epipolar filtering for rectified images
-const float max_y_diff = 5.0f;
+const float max_y_diff = Y_DIFF_THRESHOLD; // 5.0 pixels
 std::vector<cv::Point2f> good_pts_left, good_pts_right;
 for (size_t i = 0; i < pts_left.size(); ++i) {
     if (status[i]) {
@@ -207,30 +222,35 @@ for (size_t i = 0; i < pts_left.size(); ++i) {
 }
 ```
 
-**Purpose:** Matches features between left and right images using KLT optical flow with epipolar constraint filtering.
+**Purpose:** Matches features between left and right images using KLT optical flow with epipolar constraint filtering. **Note: Processing is sequential for WebAssembly compatibility.**
 
 ### 9. Stereo Triangulation
 
 **File:** `src/slam/src/stereo_slam_interface.cpp`
 ```cpp
-// Triangulation
-std::vector<cv::Point3d> points3d;
-StereoSLAMUtils::triangulateStereoMatches(good_pts_left, good_pts_right, calib, points3d);
-
-// Filter out points with z <= 0
-std::vector<cv::Point3d> filtered_points3d;
-std::vector<cv::Point2f> filtered_keypoints_left;
-std::vector<cv::Point2f> filtered_keypoints_right;
-for (size_t i = 0; i < points3d.size(); ++i) {
-    if (points3d[i].z > 0) {
-        filtered_points3d.push_back(points3d[i]);
-        filtered_keypoints_left.push_back(good_pts_left[i]);
-        filtered_keypoints_right.push_back(good_pts_right[i]);
+// Triangulation - Sequential processing
+if (good_pts_left.size() >= MIN_STEREO_MATCHES) { // MIN_STEREO_MATCHES = 2
+    std::vector<cv::Point3d> points3d;
+    StereoSLAMUtils::triangulateStereoMatches(good_pts_left, good_pts_right, calib, points3d);
+    
+    // Filter out points with z <= 0
+    std::vector<cv::Point3d> filtered_points3d;
+    std::vector<cv::Point2f> filtered_keypoints_left;
+    std::vector<cv::Point2f> filtered_keypoints_right;
+    for (size_t i = 0; i < points3d.size(); ++i) {
+        if (points3d[i].z > 0) {
+            filtered_points3d.push_back(points3d[i]);
+            filtered_keypoints_left.push_back(good_pts_left[i]);
+            filtered_keypoints_right.push_back(good_pts_right[i]);
+        }
     }
+    
+    // Store 3D points for plane detection and world coordinate transformation
+    lastStereo3DPoints = filtered_points3d;
 }
 ```
 
-**Purpose:** Triangulates 3D points from stereo correspondences using camera calibration.
+**Purpose:** Triangulates 3D points from stereo correspondences using camera calibration. **Note: Processing is sequential for WebAssembly compatibility.**
 
 ### 10. Hybrid Initialization
 
@@ -247,13 +267,16 @@ if (!scale_initialized || tracking_lost) {
     cv::calcOpticalFlowPyrLK(prev_left_gray_for_init, left_gray, 
                              prev_left_kps_for_init, tracked_curr_kps, status, err);
     
-    // Compute 5-point essential matrix
+    // Compute 5-point essential matrix using proper camera calibration
+    cv::Mat K = (cv::Mat_<double>(3,3) << calib.left_.fx_, 0, calib.left_.cx_, 
+                                         0, calib.left_.fy_, calib.left_.cy_, 
+                                         0, 0, 1);
     cv::Mat E = cv::findEssentialMat(good_prev_kps, good_curr_kps, 
-                                     cv::Mat::eye(3, 3, CV_64F), cv::RANSAC, 0.999, 1.0);
+        K, cv::RANSAC, 0.999, EPIPOLAR_THRESHOLD);
     
     // Recover pose from essential matrix (up to scale)
     cv::Mat R, t;
-    cv::recoverPose(E, good_prev_kps, good_curr_kps, R, t);
+    cv::recoverPose(E, good_prev_kps, good_curr_kps, K, R, t);
     
     // Convert to Sophus::SE3d (up to scale)
     Sophus::SE3d Twc_mono;
@@ -266,44 +289,42 @@ if (!scale_initialized || tracking_lost) {
     StereoSLAMUtils::triangulateStereoMatches(good_stereo_left, good_stereo_right, 
                                              calib, stereo_3d_points);
     
-    // Step 3: Scale Recovery
-    // Find common points between temporal and stereo matches
-    // Compute scale factor from distance ratios
-    double scale_factor = 1.0;
-    std::vector<double> scale_ratios;
+    // Step 3: Direct Scale Recovery using Stereo Baseline
+    // Instead of complex triangulation comparison, use the stereo baseline directly
+    double stereo_baseline = std::abs(calib.T_left_right_.translation().x());
+    if (stereo_baseline < 1e-6) stereo_baseline = 0.1; // Fallback baseline
     
-    for (size_t i = 0; i < common_prev.size(); ++i) {
-        for (size_t j = i + 1; j < common_prev.size(); ++j) {
-            // Distance in stereo 3D points (metric)
-            cv::Point3d diff_stereo = common_stereo_3d[i] - common_stereo_3d[j];
-            double dist_stereo = cv::norm(diff_stereo);
-            
-            // Distance in monocular reconstruction (up to scale)
-            // ... compute monocular distances ...
-            
-            if (dist_mono > 0.001) {
-                scale_ratios.push_back(dist_stereo / dist_mono);
-            }
-        }
-    }
-    
-    // Use median scale ratio for robustness
-    if (scale_ratios.size() > 0) {
-        std::sort(scale_ratios.begin(), scale_ratios.end());
-        scale_factor = scale_ratios[scale_ratios.size() / 2];
+    double mono_translation_norm = Twc_mono.translation().norm();
+    if (mono_translation_norm > 1e-6) {
+        // Scale factor = stereo_baseline / monocular_translation_norm
+        scale_factor = stereo_baseline / mono_translation_norm;
+        
+        // Apply scale factor bounds to prevent extremely small or large values
+        if (scale_factor < MIN_SCALE_FACTOR) scale_factor = MIN_SCALE_FACTOR;
+        if (scale_factor > MAX_SCALE_FACTOR) scale_factor = MAX_SCALE_FACTOR;
     }
     
     // Step 4: Apply Scale and Set Initial Pose
-    current_pose = Twc_mono;
-    current_pose.translation() *= scale_factor;
+    current_pose = Sophus::SE3d(Twc_mono.rotationMatrix(), scale_factor * Twc_mono.translation());
     
     scale_initialized = true;
     last_pose = current_pose;
     initial_pose = current_pose;
+    
+    // Initialize monocular system for pose updates
+    if (!monocular_system_initialized) {
+        monocular_system = std::make_unique<System>();
+        monocular_system->configure(width, height, calib.left_.fx_, calib.left_.fy_, 
+                                   calib.left_.cx_, calib.left_.cy_, 
+                                   calib.left_.k1_, calib.left_.k2_, 
+                                   calib.left_.p1_, calib.left_.p2_);
+        monocular_system->setInitialPose(current_pose);
+        monocular_system_initialized = true;
+    }
 }
 ```
 
-**Purpose:** Implements hybrid initialization combining monocular 5-point essential matrix with stereo scale recovery for robust metric-scale initialization.
+**Purpose:** Implements hybrid initialization combining monocular 5-point essential matrix with stereo scale recovery for robust metric-scale initialization. **Note: All processing is sequential for WebAssembly compatibility.**
 
 ### 11. Monocular SLAM for Pose Updates (After Initialization)
 
@@ -336,7 +357,8 @@ if (!scale_initialized || tracking_lost) {
             Eigen::Vector3d t(pose_data[12], pose_data[13], pose_data[14]);
             Eigen::Quaterniond q(R);
             
-            current_pose = Sophus::SE3d(q, t);
+            // Apply scale factor to monocular pose to maintain metric scale
+            current_pose = Sophus::SE3d(q, scale_factor * t);
             last_pose = current_pose;
         } else {
             // If monocular SLAM fails, keep the last pose
@@ -349,7 +371,7 @@ if (!scale_initialized || tracking_lost) {
 }
 ```
 
-**Purpose:** After initialization, the system switches to monocular SLAM using only the left camera. The right camera image is ignored, and the system relies on the established monocular SLAM pipeline while maintaining the metric scale recovered during initialization.
+**Purpose:** After initialization, the system switches to monocular SLAM using only the left camera. The right camera image is ignored, and the system relies on the established monocular SLAM pipeline while maintaining the metric scale recovered during initialization. **Note: All processing is sequential for WebAssembly compatibility.**
 
 ### 12. Stereo Triangulation Implementation
 
@@ -447,7 +469,7 @@ extern "C" int getStereoFramePoints(int pointsPtr) {
 
 ## Stereo Calibration Format
 
-**File:** `examples/public/assets/stereo_camera.yaml`
+**File:** `examples/public/assets/dual_esp32.yaml`
 ```yaml
 %YAML:1.0
 LEFT.width: 480

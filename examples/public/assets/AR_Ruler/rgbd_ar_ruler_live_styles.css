@@ -349,7 +349,7 @@ canvas {
   position: absolute;
   width: 100%;
   white-space: pre-wrap;
-  content: "RGBD Live AR Ruler - Distance Measurement \A Using live RGBD stereo camera feed \A (Real-time stereo camera input)";
+  content: "RGBD Live AR Ruler - Distance Measurement \A Using live RGBD stereo camera feed \A (Real-time stereo camera input) \A \A 📏 INTERACTIONS: \A • Click LEFT FRAME first time: Place GREEN start marker \A • Click LEFT FRAME second time: Place RED end marker \A • Click LEFT FRAME third time: Clear all \A \A 🔄 Live feed • 👁️ Eye button for extended UI";
   top: calc(50% + 50px);
   text-align: center;
   color: #949494;

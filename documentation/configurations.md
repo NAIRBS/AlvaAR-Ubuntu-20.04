@@ -88,6 +88,47 @@ AlvaAR implements a **modified ACCURATE configuration** with additional optimiza
 - **Resolution adaptive**: Keypoint count scales automatically with image resolution
 - **Consistent logic**: Both monocular and stereo use similar detection methods
 
+## Stereo SLAM Configuration Parameters
+
+### Current Stereo SLAM Thresholds (src/slam/src/stereo_slam_interface.cpp)
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| `EPIPOLAR_THRESHOLD` | 1.0 pixels | Essential matrix RANSAC threshold |
+| `OPTICAL_FLOW_ERROR` | 0.001 | Optical flow error threshold |
+| `FEATURE_QUALITY` | 0.001 | Corner detection quality threshold |
+| `SUBPIXEL_ACCURACY` | 0.01 pixels | Sub-pixel refinement accuracy |
+| `Y_DIFF_THRESHOLD` | 5.0 pixels | Y-coordinate difference for stereo matching |
+| `Y_DIFF_STRICT` | 2.0 pixels | Stricter Y-difference for scale recovery |
+| `MIN_DEPTH` | 0.1 meters | Minimum valid depth |
+| `MAX_DEPTH` | 100.0 meters | Maximum valid depth |
+| `MIN_STEREO_MATCHES` | 2 | Minimum stereo matches for triangulation |
+| `MIN_STEREO_MATCHES_STRICT` | 4 | Minimum stereo matches for scale recovery |
+| `MIN_3D_POINTS` | 2 | Minimum 3D points after filtering |
+| `MIN_3D_POINTS_WARNING` | 10 | Warning threshold for 3D points |
+| `LOST_TRACKING_THRESHOLD` | 10 frames | Frames before declaring tracking lost |
+| `MIN_SCALE_FACTOR` | 0.0001 | Minimum scale factor |
+| `MAX_SCALE_FACTOR` | 50.0 | Maximum scale factor |
+
+### Grid-Based Feature Management
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| `grid_cell_size` | 40 pixels | Grid cell size (same as monocular) |
+| `grid_max_per_cell` | 2 | Maximum features per cell |
+| `grid_min_per_cell` | 1 | Minimum features per cell |
+| `max_total_kps` | 320 | Maximum total keypoints for 640x480 |
+| `grid_quality` | 0.001 | Feature detection quality threshold |
+
+### Processing Configuration
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| **Processing Type** | Sequential | All C++ processing is sequential for WebAssembly compatibility |
+| **Multithreading** | Disabled | WebAssembly multithreading is not production-ready |
+| **Scale Recovery** | Direct baseline method | Uses stereo baseline for scale recovery |
+| **Monocular Integration** | Enabled | Switches to monocular SLAM after initialization |
+
 ## Technical Notes
 
 ### Coordinate Systems

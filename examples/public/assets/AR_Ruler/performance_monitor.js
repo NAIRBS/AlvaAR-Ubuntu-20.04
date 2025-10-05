@@ -10,9 +10,10 @@ class PerformanceMonitor {
         this.frameCount = 0;
         this.startTime = null;
         this.lastFrameTime = 0;
+        this.videoName = 'unknown';
         
         // Performance metrics
-        this.cpuUsage = 0;
+        this.frameTimeUtilization = 0;
         this.memoryUsage = 0;
         this.componentLatencies = {
             video: 0,
@@ -26,9 +27,6 @@ class PerformanceMonitor {
         this.memoryInfoAvailable = performance && performance.memory;
         this.mbSize = Math.pow(1000, 2);
         
-        // CPU usage calculation
-        this.cpuUsageHistory = [];
-        this.cpuUsageBufferSize = 60; // 1 second at 60fps
         
         // Component timing
         this.componentTimers = {
@@ -40,6 +38,14 @@ class PerformanceMonitor {
         // UI elements
         this.exportButton = null;
         this.idleCallbackId = null;
+    }
+
+    /**
+     * Set the video name for CSV export
+     */
+    setVideoName(videoName) {
+        this.videoName = videoName;
+        console.log('Performance monitor video name set to:', videoName);
     }
 
     /**
@@ -126,7 +132,7 @@ class PerformanceMonitor {
     /**
      * Update performance metrics for current frame
      */
-    updateFrame(stats, measurementDistance = 0) {
+    updateFrame(stats, measurementDistance = 0, moduleInstance = null) {
         if (!this.isMonitoring) return;
 
         this.frameCount++;
@@ -144,15 +150,15 @@ class PerformanceMonitor {
             this.memoryUsage = performance.memory.usedJSHeapSize / this.mbSize;
         }
 
-        // Calculate CPU usage (simplified estimation)
-        this.calculateCPUUsage();
+        // Calculate frame time utilization
+        this.calculateFrameTimeUtilization();
 
         // Update measurement distance
         this.measurementDistance = measurementDistance;
 
         // Update component latencies from stats
         if (stats) {
-            this.updateComponentLatencies(stats);
+            this.updateComponentLatencies(stats, moduleInstance);
         }
 
         // Store performance data
@@ -160,148 +166,49 @@ class PerformanceMonitor {
     }
 
     /**
-     * Calculate actual CPU usage based on real frame timing
+     * Calculate frame time utilization using the correct method for browser environments
+     * 
+     * DEFINITION: Frame time utilization = (actual processing time / available frame time) × 100%
+     * 
+     * WHY THIS IS CORRECT:
+     * 1. Browser Security: True CPU measurement is blocked by browser security policies
+     * 2. Frame-Based Approach: Measures actual work done vs time available per frame
+     * 3. Real-World Relevance: Shows how much of each frame is spent processing vs idle
+     * 4. Performance Indicator: Higher values indicate potential frame drops or lag
+     * 
+     * This method provides the most accurate estimate possible within browser constraints
+     * by measuring the ratio of actual processing time to frame duration.
      */
-    calculateCPUUsage() {
+    calculateFrameTimeUtilization() {
         const currentTime = performance.now();
         
-        // Calculate actual CPU usage based on real frame timing
-        let actualCpuUsage = 0;
+        // Calculate frame time utilization as processing time percentage of frame duration
+        let frameTimeUtilization = 0;
         
-        // Method 1: Use actual frame duration (not assumed 60fps)
         if (this.lastFrameTime > 0) {
-            const frameDuration = currentTime - this.lastFrameTime;
-            const frameProcessingTime = this.componentLatencies.total;
+            const frameDuration = currentTime - this.lastFrameTime;        // Total time available for this frame
+            const frameProcessingTime = this.componentLatencies.total;     // Actual time spent processing
             
             if (frameDuration > 0) {
-                // CPU usage = (processing time / actual frame duration) * 100
-                actualCpuUsage = Math.min(100, (frameProcessingTime / frameDuration) * 100);
+                // Frame time utilization = (processing time / frame duration) × 100%
+                // This represents the percentage of frame time spent on actual work
+                frameTimeUtilization = Math.min(100, (frameProcessingTime / frameDuration) * 100);
             }
         }
         
-        // Method 2: Use idle time to validate CPU usage
-        if (typeof requestIdleCallback !== 'undefined') {
-            this.measureIdleTime();
-        }
+        // Direct assignment for real-time responsiveness (no smoothing)
+        this.frameTimeUtilization = Math.round(frameTimeUtilization * 100) / 100;
         
-        // Method 3: Use performance timing for precise CPU measurement
-        this.measurePreciseTiming();
-        
-        // Store the actual CPU usage
-        this.cpuUsageHistory.push(actualCpuUsage);
-        
-        // Keep only recent history
-        if (this.cpuUsageHistory.length > this.cpuUsageBufferSize) {
-            this.cpuUsageHistory.shift();
-        }
-        
-        // Calculate average CPU usage
-        this.cpuUsage = this.calculateSmoothedCpuUsage();
-        
-        // Update last frame time for next calculation
+        // Update frame timing for next calculation
         this.lastFrameTime = currentTime;
     }
     
-    /**
-     * Calculate smoothed CPU usage with exponential smoothing
-     */
-    calculateSmoothedCpuUsage() {
-        if (this.cpuUsageHistory.length === 0) return 0;
-        
-        // Use exponential smoothing for more stable readings
-        const alpha = 0.3; // Smoothing factor
-        let smoothed = this.cpuUsageHistory[0];
-        
-        for (let i = 1; i < this.cpuUsageHistory.length; i++) {
-            smoothed = alpha * this.cpuUsageHistory[i] + (1 - alpha) * smoothed;
-        }
-        
-        return Math.round(smoothed * 100) / 100; // Round to 2 decimal places
-    }
     
-    /**
-     * Measure idle time to validate actual CPU usage
-     */
-    measureIdleTime() {
-        if (this.idleCallbackId) {
-            cancelIdleCallback(this.idleCallbackId);
-        }
-        
-        this.idleCallbackId = requestIdleCallback((deadline) => {
-            const idleTime = deadline.timeRemaining();
-            const currentTime = performance.now();
-            
-            // Use actual frame duration if available
-            let frameDuration = 16.67; // Default to 60fps if no frame data
-            if (this.lastFrameTime > 0) {
-                frameDuration = currentTime - this.lastFrameTime;
-            }
-            
-            // Calculate CPU usage based on actual idle time
-            // More idle time = lower CPU usage
-            const idleRatio = idleTime / frameDuration;
-            const cpuUsageFromIdle = Math.max(0, Math.min(100, (1 - idleRatio) * 100));
-            
-            // Update CPU usage with idle-based validation
-            if (cpuUsageFromIdle >= 0) {
-                this.cpuUsageHistory.push(cpuUsageFromIdle);
-                
-                // Keep only recent history
-                if (this.cpuUsageHistory.length > this.cpuUsageBufferSize) {
-                    this.cpuUsageHistory.shift();
-                }
-                
-                // Update CPU usage with smoothed calculation
-                this.cpuUsage = this.calculateSmoothedCpuUsage();
-            }
-        });
-    }
-    
-    /**
-     * Use performance.mark() and performance.measure() for precise CPU timing
-     */
-    measurePreciseTiming() {
-        const now = performance.now();
-        
-        // Mark the start of CPU measurement
-        performance.mark('cpu-measure-start');
-        
-        // Use setTimeout to measure actual CPU busy time
-        setTimeout(() => {
-            performance.mark('cpu-measure-end');
-            performance.measure('cpu-busy-time', 'cpu-measure-start', 'cpu-measure-end');
-            
-            const measures = performance.getEntriesByName('cpu-busy-time');
-            if (measures.length > 0) {
-                const busyTime = measures[measures.length - 1].duration;
-                const frameTime = 1000 / Math.max(this.fps, 1);
-                
-                if (frameTime > 0) {
-                    // Calculate actual CPU usage from busy time
-                    const preciseCpuUsage = Math.min(100, (busyTime / frameTime) * 100);
-                    this.cpuUsageHistory.push(preciseCpuUsage);
-                    
-                    // Keep only recent history
-                    if (this.cpuUsageHistory.length > this.cpuUsageBufferSize) {
-                        this.cpuUsageHistory.shift();
-                    }
-                    
-                    // Update CPU usage with precise timing
-                    this.cpuUsage = this.calculateSmoothedCpuUsage();
-                }
-            }
-            
-            // Clean up old performance marks
-            performance.clearMarks('cpu-measure-start');
-            performance.clearMarks('cpu-measure-end');
-            performance.clearMeasures('cpu-busy-time');
-        }, 0);
-    }
 
     /**
      * Update component latencies from stats object
      */
-    updateComponentLatencies(stats) {
+    updateComponentLatencies(stats, moduleInstance = null) {
         if (stats && stats.timers) {
             stats.timers.forEach(timer => {
                 const [name, timerObj] = timer;
@@ -309,6 +216,63 @@ class PerformanceMonitor {
                     this.componentLatencies[name] = timerObj.getElapsedTime();
                 }
             });
+            
+            // Use most accurate timing: JavaScript + C++ (includes WASM overhead)
+            if (moduleInstance && moduleInstance.getSlamProcessingTime) {
+                try {
+                    const cppSlamTime = moduleInstance.getSlamProcessingTime();
+                    if (cppSlamTime > 0) {
+                        // Get JavaScript timing (includes WASM communication overhead)
+                        const jsSlamTime = this.componentLatencies.slam || 0;
+                        
+                        // Store both timings for detailed analysis
+                        this.componentLatencies.slamCpp = cppSlamTime;
+                        
+                        // Use JavaScript timing as it includes WASM overhead (most accurate for real-world performance)
+                        // But log both for analysis
+                        // console.log(`[Performance] JS timing (includes WASM overhead): ${jsSlamTime.toFixed(2)}ms`);
+                        // console.log(`[Performance] C++ timing (pure algorithm): ${cppSlamTime.toFixed(2)}ms`);
+                        // console.log(`[Performance] WASM overhead: ${(jsSlamTime - cppSlamTime).toFixed(2)}ms`);
+                        
+                        // Keep JavaScript timing for most accurate real-world performance
+                        // (This includes the WASM communication overhead which is part of the total cost)
+                        
+                        // Update Stats tracker with JavaScript timing (most accurate - includes WASM overhead)
+                        if (stats.timers && stats.timers.has('slam')) {
+                            const slamTimer = stats.timers.get('slam');
+                            if (slamTimer) {
+                                // Update both delta and average array for live display
+                                slamTimer.delta = jsSlamTime;
+                                
+                                // Update the average array to reflect accurate timing
+                                slamTimer.avg[slamTimer.idx] = jsSlamTime;
+                                slamTimer.idx = (slamTimer.idx + 1) % slamTimer.avg.length;
+                                
+                                // console.log(`[Performance] Updated Stats tracker with JS timing (includes WASM): ${jsSlamTime.toFixed(2)}ms`);
+                            }
+                        }
+                        
+                        // Also update total timing if available
+                        if (stats.timers && stats.timers.has('total')) {
+                            const totalTimer = stats.timers.get('total');
+                            if (totalTimer) {
+                                // Update total with accurate video + slam timing
+                                const videoTime = this.componentLatencies.video || 0;
+                                const totalTime = videoTime + jsSlamTime;
+                                
+                                // Update both delta and average array for live display
+                                totalTimer.delta = totalTime;
+                                totalTimer.avg[totalTimer.idx] = totalTime;
+                                totalTimer.idx = (totalTimer.idx + 1) % totalTimer.avg.length;
+                                
+                                // console.log(`[Performance] Updated Stats total timing: ${totalTime.toFixed(2)}ms`);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // console.log('[Performance] C++ SLAM timing not available, using JavaScript timing');
+                }
+            }
             
             // Calculate total latency as sum of all components
             this.componentLatencies.total = this.componentLatencies.video + this.componentLatencies.slam;
@@ -322,11 +286,12 @@ class PerformanceMonitor {
         const data = {
             timestamp: performance.now(),
             frameNumber: this.frameCount,
-            cpuUsage: Math.round(this.cpuUsage * 100) / 100,
+            frameTimeUtilization: Math.round(this.frameTimeUtilization * 100) / 100,
             memoryUsage: Math.round(this.memoryUsage * 100) / 100,
             fps: this.fps,
             videoLatency: Math.round(this.componentLatencies.video * 100) / 100,
             slamLatency: Math.round(this.componentLatencies.slam * 100) / 100,
+            slamLatencyCpp: Math.round(this.componentLatencies.slamCpp * 100) / 100,
             totalLatency: Math.round(this.componentLatencies.total * 100) / 100,
             measurementDistance: Math.round(this.measurementDistance * 1000) / 1000
         };
@@ -344,12 +309,16 @@ class PerformanceMonitor {
             return;
         }
 
-        // Create CSV header
-        const csvHeader = 'timestamp,frame_number,cpu_usage_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms,total_latency_ms,measurement_distance_m\n';
+        // Create CSV header with both JS and C++ timing
+        const csvHeader = 'video_name,timestamp,frame_number,frame_time_utilization_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms_js,slam_latency_ms_cpp,wasm_overhead_ms,total_latency_ms,measurement_distance_m\n';
         
-        // Create CSV content
+        // Create CSV content with detailed timing
         const csvContent = this.performanceData.map(data => {
-            return `${data.timestamp},${data.frameNumber},${data.cpuUsage},${data.memoryUsage},${data.fps},${data.videoLatency},${data.slamLatency},${data.totalLatency},${data.measurementDistance}`;
+            const slamLatencyJs = data.slamLatency || 0;
+            const slamLatencyCpp = data.slamLatencyCpp || 0;
+            const wasmOverhead = Math.max(0, slamLatencyJs - slamLatencyCpp);
+            
+            return `${this.videoName},${data.timestamp},${data.frameNumber},${data.frameTimeUtilization},${data.memoryUsage},${data.fps},${data.videoLatency},${slamLatencyJs},${slamLatencyCpp},${wasmOverhead},${data.totalLatency},${data.measurementDistance}`;
         }).join('\n');
         
         const fullCsv = csvHeader + csvContent;
@@ -359,7 +328,11 @@ class PerformanceMonitor {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `performance_data_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+        const deviceName = navigator.userAgent.includes('Mobile') ? 'Mobile' : 
+                          navigator.userAgent.includes('Tablet') ? 'Tablet' : 'Desktop';
+        // Extract only the left video name (before the " / " separator) and remove .mp4
+        const leftVideoName = this.videoName.split(' / ')[0].replace('.mp4', '').replace(/[^a-zA-Z0-9]/g, '_');
+        a.download = `Stats-Report_${leftVideoName}_${deviceName}_${new Date().toLocaleString().replace(/[/:]/g, '-').replace(/,/g, '')}.csv`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

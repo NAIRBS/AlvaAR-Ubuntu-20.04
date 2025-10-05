@@ -56,6 +56,9 @@ static const double MAX_SCALE_FACTOR = 50.0;             // Maximum scale factor
 
 static std::string g_stereo_calib_yaml_string;
 
+// Global variable for SLAM timing
+static double g_slam_duration_ms = 0.0;
+
 // Persistent buffer for last left image keypoints for JS visualization
 static std::vector<cv::Point2f> lastStereoLeftKeypoints;
 
@@ -889,7 +892,12 @@ extern "C" int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int pos
 
     // Profiling output
     auto t_end = std::chrono::high_resolution_clock::now();
-    // std::cerr << "[PROFILE] TOTAL: " << std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count() << " ms\n";
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start);
+    
+    // Store timing for JavaScript access
+    g_slam_duration_ms = duration.count() / 1000.0; // Convert to milliseconds
+    
+    // std::cerr << "[PROFILE] TOTAL: " << last_slam_duration_ms << " ms\n";
 
     //std::cerr << "[StereoSLAM] DEBUG: Function returning 1 (success)" << std::endl;
     return 1;
@@ -928,4 +936,9 @@ extern "C" int getStereoFramePoints3D(int points3DPtr) {
         data[i * 3 + 2] = (float)world_points_buffer[i].z;
     }
     return n;
+}
+
+// Expose C++ SLAM timing to JavaScript for accurate measurement
+extern "C" double getSlamProcessingTime() {
+    return g_slam_duration_ms;
 } 

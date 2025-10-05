@@ -30,7 +30,7 @@ if (NOT DIST_DIR)
     set(DIST_DIR ${CMAKE_BINARY_DIR}/../../../dist)
 endif (NOT DIST_DIR)
 
-set(LIBS_BUILD_FOLDER "../libs/build")
+set(LIBS_BUILD_FOLDER "../libs/build_threads")
 
 include_directories(${LIBS_BUILD_FOLDER}/../opencv/modules/calib3d/include/)
 include_directories(${LIBS_BUILD_FOLDER}/../opencv/modules/core/include/)

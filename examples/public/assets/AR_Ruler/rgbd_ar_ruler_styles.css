@@ -426,10 +426,12 @@ canvas {
   position: absolute;
   width: 100%;
   white-space: pre-wrap;
-  content: "RGBD Video AR Ruler - Distance Measurement \A Using pre-recorded RGBD stereo video \A (v2_ruler_left_web.mp4 / v2_ruler_right_web.mp4)";
+  content: "RGBD Video AR Ruler - Distance Measurement \A Using pre-recorded RGBD stereo video \A (v2_ruler_left_web.mp4 / v2_ruler_right_web.mp4) \A \A 📏 INTERACTIONS: \A • Click LEFT FRAME first time: Place GREEN start marker \A • Click LEFT FRAME second time: Place RED end marker \A • Click LEFT FRAME third time: Clear all \A \A 🔄 Auto-loop • 📹 Dropdown for video • 👁️ Eye button for extended UI";
   top: calc(50% + 50px);
   text-align: center;
   color: #949494;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 #overlay button {

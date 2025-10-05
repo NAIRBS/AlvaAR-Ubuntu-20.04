@@ -95,8 +95,13 @@ class Stats
         this.frame = 0;
         this.timers = [];
         this.timer = new StatsTimer();
-        this.buffer = new StatsBuffer( 16 );
+        this.buffer = new StatsBuffer( 60 );  // 1 second at 60fps for smoother FPS
         this.fpss = new Array( 50 ).fill( 0 );
+        
+        // Perfect FPS measurement: track frame intervals only
+        this.frameIntervalTimer = new StatsTimer();
+        this.frameIntervals = new StatsBuffer( 60 );  // 1 second of frame intervals
+        this.lastFrameTime = 0;
 
         this.mbInfoAvailable = ( performance && performance.memory && performance.memory.totalJSHeapSize );
         this.mbSize = Math.pow( 1000, 2 );
@@ -126,27 +131,36 @@ class Stats
     next()
     {
         ++this.frame;
+        const currentTime = performance.now();
 
         this.timers.forEach( o => o[1].reset() );
 
         if( this.frame > 0 )
         {
+            // Perfect FPS measurement: frame interval only
+            const frameInterval = currentTime - this.lastFrameTime;
+            this.frameIntervals.push( frameInterval );
+            
+            // Calculate FPS from frame intervals (most accurate)
+            let intervalSize = this.frameIntervals.size();
+            let intervalSum = 0;
+            
+            for( let i = 0; i < intervalSize; ++i )
+            {
+                intervalSum += this.frameIntervals.getAt( i );
+            }
+            
+            // FPS = number of intervals / total time * 1000ms
+            this.fps = intervalSize / intervalSum * 1000;
+            this.fpss[this.frame % this.fpss.length] = ~~this.fps;
+            
+            // Legacy timer for compatibility (includes processing time)
             this.timer.stop();
             this.buffer.push( this.timer.getElapsedTime() );
-
-            let size = this.buffer.size();
-            let sum = 0;
-
-            for( let i = 0; i < size; ++i )
-            {
-                sum += this.buffer.getAt( i );
-            }
-
-            this.fps = size / sum * 1000;
-            this.fpss[this.frame % this.fpss.length] = ~~this.fps;
             this.timer.start();
-
         }
+        
+        this.lastFrameTime = currentTime;
 
         if( this.mbInfoAvailable )
         {

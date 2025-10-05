@@ -346,7 +346,7 @@ canvas {
   position: absolute;
   width: 100%;
   white-space: pre-wrap;
-  content: "ESP32 Live AR Ruler - Distance Measurement \A Using live ESP32 stereo camera feed \A (Real-time ESP32 camera input)";
+  content: "ESP32 Live AR Ruler - Distance Measurement \A Using live ESP32 stereo camera feed \A (Real-time ESP32 camera input) \A \A 📏 INTERACTIONS: \A • Click LEFT FRAME first time: Place GREEN start marker \A • Click LEFT FRAME second time: Place RED end marker \A • Click LEFT FRAME third time: Clear all \A \A 🔄 Live feed • 👁️ Eye button for extended UI";
   top: calc(50% + 50px);
   text-align: center;
   color: #949494;

@@ -13,7 +13,9 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
 
 ## [Index](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/index.html): All available websites
 
-## [AlvaAR Ruler](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/rgbd_video_AR_Ruler.html): Example of AR Ruler with recorded RGBD camera video.
+## [AlvaAR Ruler](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/rgbd_video_AR_Ruler_visualizer.html): Example of AR Ruler with recorded RGBD camera video(s).
+
+## [SLAM Testing](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/testing.html): Using Dataset "Dataset Vicon room 1 “easy”" from [Euroc MAV Dataset](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets#downloads)
 
 ## [Video Demo](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/video.html): A desktop browser version using a video file as input.  
 
