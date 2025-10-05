@@ -217,60 +217,29 @@ class PerformanceMonitor {
                 }
             });
             
-            // Use most accurate timing: JavaScript + C++ (includes WASM overhead)
-            if (moduleInstance && moduleInstance.getSlamProcessingTime) {
-                try {
-                    const cppSlamTime = moduleInstance.getSlamProcessingTime();
-                    if (cppSlamTime > 0) {
-                        // Get JavaScript timing (includes WASM communication overhead)
-                        const jsSlamTime = this.componentLatencies.slam || 0;
-                        
-                        // Store both timings for detailed analysis
-                        this.componentLatencies.slamCpp = cppSlamTime;
-                        
-                        // Use JavaScript timing as it includes WASM overhead (most accurate for real-world performance)
-                        // But log both for analysis
-                        // console.log(`[Performance] JS timing (includes WASM overhead): ${jsSlamTime.toFixed(2)}ms`);
-                        // console.log(`[Performance] C++ timing (pure algorithm): ${cppSlamTime.toFixed(2)}ms`);
-                        // console.log(`[Performance] WASM overhead: ${(jsSlamTime - cppSlamTime).toFixed(2)}ms`);
-                        
-                        // Keep JavaScript timing for most accurate real-world performance
-                        // (This includes the WASM communication overhead which is part of the total cost)
-                        
-                        // Update Stats tracker with JavaScript timing (most accurate - includes WASM overhead)
-                        if (stats.timers && stats.timers.has('slam')) {
-                            const slamTimer = stats.timers.get('slam');
-                            if (slamTimer) {
-                                // Update both delta and average array for live display
-                                slamTimer.delta = jsSlamTime;
-                                
-                                // Update the average array to reflect accurate timing
-                                slamTimer.avg[slamTimer.idx] = jsSlamTime;
-                                slamTimer.idx = (slamTimer.idx + 1) % slamTimer.avg.length;
-                                
-                                // console.log(`[Performance] Updated Stats tracker with JS timing (includes WASM): ${jsSlamTime.toFixed(2)}ms`);
-                            }
-                        }
-                        
-                        // Also update total timing if available
-                        if (stats.timers && stats.timers.has('total')) {
-                            const totalTimer = stats.timers.get('total');
-                            if (totalTimer) {
-                                // Update total with accurate video + slam timing
-                                const videoTime = this.componentLatencies.video || 0;
-                                const totalTime = videoTime + jsSlamTime;
-                                
-                                // Update both delta and average array for live display
-                                totalTimer.delta = totalTime;
-                                totalTimer.avg[totalTimer.idx] = totalTime;
-                                totalTimer.idx = (totalTimer.idx + 1) % totalTimer.avg.length;
-                                
-                                // console.log(`[Performance] Updated Stats total timing: ${totalTime.toFixed(2)}ms`);
-                            }
-                        }
-                    }
-                } catch (e) {
-                    // console.log('[Performance] C++ SLAM timing not available, using JavaScript timing');
+            // Use JavaScript timing only (includes WASM overhead)
+            const jsSlamTime = this.componentLatencies.slam || 0;
+            
+            // Update Stats tracker with JavaScript timing
+            if (stats.timers && Array.isArray(stats.timers)) {
+                // Find slam timer in the array
+                const slamTimerEntry = stats.timers.find(timer => timer[0] === 'slam');
+                if (slamTimerEntry) {
+                    const slamTimer = slamTimerEntry[1];
+                    slamTimer.delta = jsSlamTime;
+                    slamTimer.avg[slamTimer.idx] = jsSlamTime;
+                    slamTimer.idx = (slamTimer.idx + 1) % slamTimer.avg.length;
+                }
+                
+                // Find total timer in the array
+                const totalTimerEntry = stats.timers.find(timer => timer[0] === 'total');
+                if (totalTimerEntry) {
+                    const totalTimer = totalTimerEntry[1];
+                    const videoTime = this.componentLatencies.video || 0;
+                    const totalTime = videoTime + jsSlamTime;
+                    totalTimer.delta = totalTime;
+                    totalTimer.avg[totalTimer.idx] = totalTime;
+                    totalTimer.idx = (totalTimer.idx + 1) % totalTimer.avg.length;
                 }
             }
             
@@ -291,7 +260,6 @@ class PerformanceMonitor {
             fps: this.fps,
             videoLatency: Math.round(this.componentLatencies.video * 100) / 100,
             slamLatency: Math.round(this.componentLatencies.slam * 100) / 100,
-            slamLatencyCpp: Math.round(this.componentLatencies.slamCpp * 100) / 100,
             totalLatency: Math.round(this.componentLatencies.total * 100) / 100,
             measurementDistance: Math.round(this.measurementDistance * 1000) / 1000
         };
@@ -310,15 +278,13 @@ class PerformanceMonitor {
         }
 
         // Create CSV header with both JS and C++ timing
-        const csvHeader = 'video_name,timestamp,frame_number,frame_time_utilization_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms_js,slam_latency_ms_cpp,wasm_overhead_ms,total_latency_ms,measurement_distance_m\n';
+        const csvHeader = 'video_name,timestamp,frame_number,frame_time_utilization_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms_js,total_latency_ms,measurement_distance_m\n';
         
-        // Create CSV content with detailed timing
+        // Create CSV content with JavaScript timing only
         const csvContent = this.performanceData.map(data => {
             const slamLatencyJs = data.slamLatency || 0;
-            const slamLatencyCpp = data.slamLatencyCpp || 0;
-            const wasmOverhead = Math.max(0, slamLatencyJs - slamLatencyCpp);
             
-            return `${this.videoName},${data.timestamp},${data.frameNumber},${data.frameTimeUtilization},${data.memoryUsage},${data.fps},${data.videoLatency},${slamLatencyJs},${slamLatencyCpp},${wasmOverhead},${data.totalLatency},${data.measurementDistance}`;
+            return `${this.videoName},${data.timestamp},${data.frameNumber},${data.frameTimeUtilization},${data.memoryUsage},${data.fps},${data.videoLatency},${slamLatencyJs},${data.totalLatency},${data.measurementDistance}`;
         }).join('\n');
         
         const fullCsv = csvHeader + csvContent;

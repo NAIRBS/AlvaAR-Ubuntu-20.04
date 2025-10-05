@@ -135,7 +135,7 @@ export class ARRulerVisualizer {
     }
     
     if (window.debugCounter % 30 === 0) {
-      console.log('Measurement line updated:', startPos, 'to', endPos, 'distance:', distance);
+      //console.log('Measurement line updated:', startPos, 'to', endPos, 'distance:', distance);
     }
   }
 

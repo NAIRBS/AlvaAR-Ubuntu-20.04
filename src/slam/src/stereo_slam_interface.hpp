@@ -6,7 +6,6 @@ extern "C" {
 
 int findStereoCameraPose(int leftImagePtr, int rightImagePtr, int posePtr);
 void setStereoCalibrationYAML(const char* yaml, int length);
-double getSlamProcessingTime();
 
 // ==== STEREO SLAM ADDITION: 2D KEYPOINTS EXPORT ====
 // Returns the last set of left image keypoints (2D points) for visualization in JS.

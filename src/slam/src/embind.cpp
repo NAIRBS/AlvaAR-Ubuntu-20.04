@@ -28,5 +28,4 @@ EMSCRIPTEN_BINDINGS(Module)
     function("getStereoFrameKeypoints", &getStereoFrameKeypoints, allow_raw_pointers());
     function("getStereoFramePoints", &getStereoFramePoints, allow_raw_pointers());
     function("getStereoFramePoints3D", &getStereoFramePoints3D, allow_raw_pointers());
-    function("getSlamProcessingTime", &getSlamProcessingTime);
 }

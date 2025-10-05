@@ -675,11 +675,11 @@ export class ARRulerSystem {
             bestRayAlignment = rayAlignmentScore;
             
             if (window.debugCounter % 60 === 0) {
-              console.log('Found better point (ray-aligned):', {
-                distance: distanceFromCamera.toFixed(3),
-                rayAlignment: perpendicularDistance.toFixed(3),
-                score: rayAlignmentScore.toFixed(4)
-              });
+              // console.log('Found better point (ray-aligned):', {
+              //   distance: distanceFromCamera.toFixed(3),
+              //   rayAlignment: perpendicularDistance.toFixed(3),
+              //   score: rayAlignmentScore.toFixed(4)
+              // });
             }
           }
         }
@@ -689,17 +689,17 @@ export class ARRulerSystem {
     // Return the nearest distance if found, otherwise fallback
     if (nearestDistance !== Infinity) {
       if (window.debugCounter % 60 === 0) {
-        console.log('Found ray-aligned point:');
-        console.log('  Distance:', nearestDistance.toFixed(3), 'meters');
-        console.log('  Ray alignment:', bestRayAlignment.toFixed(3), 'meters');
-        console.log('  Point:', nearestPoint);
-        console.log('  Priority: Ray alignment > Distance');
+        // console.log('Found ray-aligned point:');
+        // console.log('  Distance:', nearestDistance.toFixed(3), 'meters');
+        // console.log('  Ray alignment:', bestRayAlignment.toFixed(3), 'meters');
+        // console.log('  Point:', nearestPoint);
+        // console.log('  Priority: Ray alignment > Distance');
       }
       return nearestDistance;
     }
     
     // Fallback: return fixed distance
-    console.log('No suitable points found, using fallback distance');
+    // console.log('No suitable points found, using fallback distance');
     return 2.0;
   }
 
@@ -717,12 +717,12 @@ export class ARRulerSystem {
     const markerPosition = raycastPoint.clone().add(rayDirection.clone().multiplyScalar(markerDistanceForward));
     
     if (window.debugCounter % 30 === 0) {
-      console.log('🎯 RAY-ALIGNED MARKER PLACEMENT:');
-      console.log('  Raycast point:', raycastPoint);
-      console.log('  Nearest distance:', nearestDistance.toFixed(3), 'meters');
-      console.log('  Marker forward by:', markerDistanceForward.toFixed(1), 'meters');
-      console.log('  Final marker position:', markerPosition);
-      console.log('  Priority: Ray alignment > Distance for better accuracy');
+      // console.log('🎯 RAY-ALIGNED MARKER PLACEMENT:');
+      // console.log('  Raycast point:', raycastPoint);
+      // console.log('  Nearest distance:', nearestDistance.toFixed(3), 'meters');
+      // console.log('  Marker forward by:', markerDistanceForward.toFixed(1), 'meters');
+      // console.log('  Final marker position:', markerPosition);
+      // console.log('  Priority: Ray alignment > Distance for better accuracy');
     }
     
     return markerPosition;

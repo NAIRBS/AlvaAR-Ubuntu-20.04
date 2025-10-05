@@ -32,7 +32,7 @@ This method provides the most accurate and meaningful CPU usage measurement poss
 ## CSV Export Format
 
 ```csv
-video_name,timestamp,frame_number,frame_time_utilization_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms_js,slam_latency_ms_cpp,wasm_overhead_ms,total_latency_ms,measurement_distance_m
+video_name,timestamp,frame_number,frame_time_utilization_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms_js,total_latency_ms,measurement_distance_m
 ```
 
 ## Metric Calculations
@@ -272,65 +272,7 @@ const jsSlamTime = stats.timers.get('slam').getElapsedTime();
 
 ---
 
-### 9. slam_latency_ms_cpp
-
-**Source**: C++ timing (pure algorithm)
-
-**Calculation**:
-```cpp
-// C++ timing (pure SLAM processing)
-auto t_start = high_resolution_clock::now();
-// ... pure C++ SLAM processing ...
-auto t_end = high_resolution_clock::now();
-auto duration = duration_cast<microseconds>(t_end - t_start);
-g_slam_duration_ms = duration.count() / 1000.0;
-```
-
-**JavaScript Access**:
-```javascript
-const cppSlamTime = moduleInstance.getSlamProcessingTime();
-```
-
-**Units**: Milliseconds (floating point)
-
-**Precision**: 2 decimal places
-
-**Example**: `12.87`
-
-**Notes**:
-- **Pure algorithm performance**
-- Excludes WASM communication overhead
-- Microsecond precision using `high_resolution_clock`
-- Used for algorithm optimization analysis
-- Exposed via `getSlamProcessingTime()` C++ function
-
----
-
-### 10. wasm_overhead_ms
-
-**Source**: Calculated difference
-
-**Calculation**:
-```javascript
-const wasmOverhead = Math.max(0, slamLatencyJs - slamLatencyCpp);
-```
-
-**Units**: Milliseconds (floating point)
-
-**Precision**: 2 decimal places
-
-**Example**: `2.36`
-
-**Notes**:
-- **WASM communication cost**
-- Difference between JavaScript and C++ timing
-- Shows overhead of JavaScript-to-WASM communication
-- Useful for performance optimization decisions
-- Always >= 0 (negative values clamped to 0)
-
----
-
-### 11. total_latency_ms
+### 9. total_latency_ms
 
 **Source**: Sum of video + SLAM timing
 
@@ -354,7 +296,7 @@ this.componentLatencies.total = this.componentLatencies.video + this.componentLa
 
 ---
 
-### 12. measurement_distance_m
+### 10. measurement_distance_m
 
 **Source**: AR Ruler measurement system
 
@@ -397,7 +339,6 @@ const data = {
     fps: this.fps,
     videoLatency: Math.round(this.componentLatencies.video * 100) / 100,
     slamLatency: Math.round(this.componentLatencies.slam * 100) / 100,
-    slamLatencyCpp: Math.round(this.componentLatencies.slamCpp * 100) / 100,
     totalLatency: Math.round(this.componentLatencies.total * 100) / 100,
     measurementDistance: Math.round(this.measurementDistance * 1000) / 1000
 };
@@ -405,14 +346,12 @@ const data = {
 
 ### CSV Generation
 ```javascript
-const csvHeader = 'video_name,timestamp,frame_number,frame_time_utilization_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms_js,slam_latency_ms_cpp,wasm_overhead_ms,total_latency_ms,measurement_distance_m\n';
+const csvHeader = 'video_name,timestamp,frame_number,frame_time_utilization_percent,memory_usage_mb,fps,video_latency_ms,slam_latency_ms_js,total_latency_ms,measurement_distance_m\n';
 
 const csvContent = this.performanceData.map(data => {
     const slamLatencyJs = data.slamLatency || 0;
-    const slamLatencyCpp = data.slamLatencyCpp || 0;
-    const wasmOverhead = Math.max(0, slamLatencyJs - slamLatencyCpp);
     
-    return `${this.videoName},${data.timestamp},${data.frameNumber},${data.frameTimeUtilization},${data.memoryUsage},${data.fps},${data.videoLatency},${slamLatencyJs},${slamLatencyCpp},${wasmOverhead},${data.totalLatency},${data.measurementDistance}`;
+    return `${this.videoName},${data.timestamp},${data.frameNumber},${data.frameTimeUtilization},${data.memoryUsage},${data.fps},${data.videoLatency},${slamLatencyJs},${data.totalLatency},${data.measurementDistance}`;
 }).join('\n');
 ```
 
