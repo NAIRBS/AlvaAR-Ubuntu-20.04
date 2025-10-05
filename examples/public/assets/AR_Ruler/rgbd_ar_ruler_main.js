@@ -69,12 +69,12 @@ const VIDEO_CONFIG = {
   'v2_ruler': {
     leftFile: 'Indoor_Videos/Indoor_Lighted_HF_small_ruler_left.mp4',
     rightFile: 'Indoor_Videos/Indoor_Lighted_HF_small_ruler_right.mp4',
-    displayName: 'Indoor_Lighted_HF_small_ruler'
+    displayName: 'Indoor_Lighted_HF_small_ruler-0.15M'
   },
   'long_ruler': {
     leftFile: 'Indoor_Videos/Indoor_Lighted_HF_long_ruler_left.mp4',
     rightFile: 'Indoor_Videos/Indoor_Lighted_HF_long_ruler_right.mp4',
-    displayName: 'Indoor_Lighted_HF_long_ruler'
+    displayName: 'Indoor_Lighted_HF_long_ruler-0.40M'
   }
 };
 
@@ -407,6 +407,9 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   
   // Store the current midpoint position for left frame panel
   let currentMidpoint = null;
+  
+  // Measurement panel offset above the measurement line (in meters)
+  const MEASUREMENT_PANEL_OFFSET = 0.10;
   
   
   // Function to create 3D measurement display
@@ -1775,14 +1778,14 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 if (currentMidpoint) {
                   midPoint3D = {
                     x: currentMidpoint.x,
-                    y: currentMidpoint.y + 0.05, // Slight upward offset for panel
+                    y: currentMidpoint.y + MEASUREMENT_PANEL_OFFSET, // Panel offset above measurement line
                     z: currentMidpoint.z
                   };
                 } else {
                   // Fallback to calculated midpoint
                   midPoint3D = {
                     x: (arRulerSystem.startPoint.x + arRulerSystem.endPoint.x) / 2,
-                    y: (arRulerSystem.startPoint.y + arRulerSystem.endPoint.y) / 2 + 0.05,
+                    y: (arRulerSystem.startPoint.y + arRulerSystem.endPoint.y) / 2 + MEASUREMENT_PANEL_OFFSET,
                     z: (arRulerSystem.startPoint.z + arRulerSystem.endPoint.z) / 2
                   };
                 }
@@ -1795,7 +1798,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                 
                 midPoint3D = {
                   x: currentEndPoint.x,
-                  y: currentEndPoint.y + 0.05, // Slight upward offset for panel
+                  y: currentEndPoint.y + MEASUREMENT_PANEL_OFFSET, // Panel offset above measurement line
                   z: currentEndPoint.z
                 };
               }
