@@ -1,0 +1,14 @@
+In google press shift esc >> find process ID
+
+On Windows:
+open the ps1 file (right click >> edit) and run the PS1 file
+Go to documents folder and take the csv
+
+
+On Linux:
+chmod +x chrome_cpu_logger.sh
+./chrome_cpu_logger.sh 12345 << replace with da PID
+
+Output is saved to:
+~/chrome_cpu_log_12345.csv
+
