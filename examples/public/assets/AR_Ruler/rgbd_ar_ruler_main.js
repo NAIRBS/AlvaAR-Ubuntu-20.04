@@ -66,15 +66,55 @@ async function loadSelectedVideo(videoType, Video) {
 
 // 🎬 VIDEO CONFIGURATION - ADD NEW VIDEOS HERE ONLY!
 const VIDEO_CONFIG = {
-  'v2_ruler': {
-    leftFile: 'Indoor_Videos/Indoor_Lighted_HF_small_ruler_left.mp4',
-    rightFile: 'Indoor_Videos/Indoor_Lighted_HF_small_ruler_right.mp4',
-    displayName: 'Indoor_Lighted_HF_small_ruler-0.15M'
+  // 'v2_ruler': {
+  //   leftFile: 'Indoor_Videos/Obsolete/Indoor_Lighted_HF_small_ruler_left.mp4',
+  //   rightFile: 'Indoor_Videos/Obsolete/Indoor_Lighted_HF_small_ruler_right.mp4',
+  //   displayName: 'Indoor_Lighted_HF_small_ruler'
+  // },
+  // 'long_ruler': {
+  //   leftFile: 'Indoor_Videos/Obsolete/Indoor_Lighted_HF_long_ruler_left.mp4',
+  //   rightFile: 'Indoor_Videos/Obsolete/Indoor_Lighted_HF_long_ruler_right.mp4',
+  //   displayName: 'Indoor_Lighted_HF_long_ruler'
+  // },
+  '1. light_desk_HF_40cm': {
+    leftFile: 'Indoor_Videos/Desk-left-light-40cm.mp4',
+    rightFile: 'Indoor_Videos/Desk-right-light-40cm.mp4',
+    displayName: '1. light_desk_HF_40cm'
   },
-  'long_ruler': {
-    leftFile: 'Indoor_Videos/Indoor_Lighted_HF_long_ruler_left.mp4',
-    rightFile: 'Indoor_Videos/Indoor_Lighted_HF_long_ruler_right.mp4',
-    displayName: 'Indoor_Lighted_HF_long_ruler-0.40M'
+  '2. dark_desk_HF_40cm': {
+    leftFile: 'Indoor_Videos/Desk-left-dark-40cm.mp4',
+    rightFile: 'Indoor_Videos/Desk-right-dark-40cm.mp4',
+    displayName: '2. dark_desk_HF_40cm'
+  },
+  '3. light_storeroom_HF_35cm': {
+    leftFile: 'Indoor_Videos/Storeroom_left_light_35cm.mp4',
+    rightFile: 'Indoor_Videos/Storeroom_right_light_35cm.mp4',
+    displayName: '3. light_storeroom_HF_35cm'
+  },
+  '4. dark_storeroom_HF_35cm': {
+    leftFile: 'Indoor_Videos/Storeroom_left_dark_35cm.mp4',
+    rightFile: 'Indoor_Videos/Storeroom_right_dark_35cm.mp4',
+    displayName: '4. dark_storeroom_HF_35cm'
+  },
+  '5. light_corridor_LF_35cm': {
+    leftFile: 'Indoor_Videos/corridor_left_light_35cm.mp4',
+    rightFile: 'Indoor_Videos/corridor_right_light_35cm.mp4',
+    displayName: '5. light_corridor_LF_35cm'
+  },
+  '6. dark_corridor_LF_35cm': {
+    leftFile: 'Indoor_Videos/corridor_left_dark_35cm.mp4',
+    rightFile: 'Indoor_Videos/corridor_right_dark_35cm.mp4',
+    displayName: '6. dark_corridor_LF_35cm'
+  },
+  '7. light_balcony_LF_35cm': {
+    leftFile: 'Indoor_Videos/Balcony_left_light_35cm.mp4',
+    rightFile: 'Indoor_Videos/Balcony_right_light_35cm.mp4',
+    displayName: '7. light_balcony_LF_35cm'
+  },
+  '8. dark_balcony_LF_35cm': {
+    leftFile: 'Indoor_Videos/Balcony_left_dark_35cm.mp4',
+    rightFile: 'Indoor_Videos/Balcony_right_dark_35cm.mp4',
+    displayName: '8. dark_balcony_LF_35cm'
   }
 };
 
@@ -82,7 +122,8 @@ const VIDEO_CONFIG = {
 function updateSplashScreenText(videoType) {
   console.log('🎬 Updating splash screen text for video type:', videoType);
   
-  const config = VIDEO_CONFIG[videoType] || VIDEO_CONFIG['long_ruler'];
+  const fallbackKey = Object.keys(VIDEO_CONFIG)[0];
+  const config = VIDEO_CONFIG[videoType] || VIDEO_CONFIG[fallbackKey];
   const videoText = `RGBD Video AR Ruler - Distance Measurement \\A Using pre-recorded RGBD stereo video \\A (${config.displayName}) \\A \\A 📏 INTERACTIONS: \\A • Click LEFT FRAME first time: Place GREEN start marker \\A • Click LEFT FRAME second time: Place RED end marker \\A • Click LEFT FRAME third time: Clear all \\A \\A 🔄 Auto-loop • 📹 Dropdown for video • 👁️ Eye button for extended UI`;
   
   console.log('🎬 Setting splash text to:', videoText);
@@ -300,7 +341,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     
     // Set initial dropdown value and splash screen text
     const storedVideoType = localStorage.getItem('selectedVideoType');
-    const initialVideoType = storedVideoType || 'long_ruler';
+    const firstKey = Object.keys(VIDEO_CONFIG)[0];
+    const initialVideoType = (storedVideoType && VIDEO_CONFIG[storedVideoType]) ? storedVideoType : firstKey;
     
     console.log('🎬 Initial setup - storedVideoType:', storedVideoType);
     console.log('🎬 Initial setup - initialVideoType:', initialVideoType);
@@ -557,145 +599,30 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     );
     
     console.log('Calculated distance:', distance);
-    
-    // Get 3D world midpoint of measurement line
-    const midPoint3D = getMeasurementMidpoint(startPoint, endPoint);
-    console.log('3D world midpoint:', midPoint3D);
-    
-    // Use the EXACT same logic as start/end markers
-    // Get camera transform from pose for world-to-camera transformation
-    const { position: cameraPosition, direction: cameraDirection } = arRulerSystem.getCameraTransform(pose);
-
-    // Create camera quaternion from pose matrix with AlvaAR coordinate transformation
-    const rotationMatrix = new THREE.Matrix4().fromArray(pose);
-    const cameraQuaternion = new THREE.Quaternion().setFromRotationMatrix(rotationMatrix);
-    cameraQuaternion.set(-cameraQuaternion.x, cameraQuaternion.y, cameraQuaternion.z, cameraQuaternion.w);
-
-    // Create world-to-camera transformation matrix (inverse of camera pose)
-    const cameraInverseMatrix = new THREE.Matrix4();
-    cameraInverseMatrix.compose(cameraPosition, cameraQuaternion, new THREE.Vector3(1, 1, 1)).invert();
-
-    // Get camera intrinsics for marker projection
-    let fx = 525, fy = 525, cx = 320, cy = 240; // Default fallback values
-    
-    if (leftCameraIntrinsics) {
-      fx = leftCameraIntrinsics.fx;
-      fy = leftCameraIntrinsics.fy;
-      cx = leftCameraIntrinsics.cx;
-      cy = leftCameraIntrinsics.cy;
-    }
-
-    // Transform world coordinates to camera coordinates (same as markers)
-    const worldPoint = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
-    const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
-
-    // console.log('=== MEASUREMENT PANEL DEBUG ===');
-    // console.log('World midpoint:', midPoint3D);
-    // console.log('Camera point:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
-    // console.log('Camera intrinsics:', {fx, fy, cx, cy});
-    // console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
-    
-    // Test panel removed - drawing code confirmed working
-
-    // Project camera coordinates to 2D image coordinates using pinhole camera model
-    if (cameraPoint.z > 0.1) { // Only points in front of camera
-      const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
-      const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
-      
-      console.log('Projected coordinates:', {x, y});
-      console.log('Bounds check:', {x: x, y: y, inBounds: x >= 0 && x < 640 && y >= 0 && y < 480});
-      
-      // Only draw if within image bounds (same as markers) - scaled to 50%
-      if (x >= 0 && x < 640 && y >= 0 && y < 480) {
-        // console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
-        
-        // Panel dimensions
-        const panelWidth = 200;
-        const panelHeight = 80;
-        const panelX = x - panelWidth / 2;
-        const panelY = y - panelHeight / 2;
-        
-        // console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
-        
-        // Draw black background panel
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-        ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
-        
-        // Draw green border
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
-        
-        // Draw distance text
-        ctx.save();
-        ctx.fillStyle = '#00ff00';
-        ctx.font = 'Bold 24px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
-        ctx.restore();
-        
-        // console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
-      } else {
-        console.log('❌ 3D midpoint outside image bounds:', {x, y, bounds: '640x480'});
-        // console.log('🔄 Drawing fallback measurement panel...');
-        
-        // Fallback: draw panel at fixed position
-        const fallbackX = 100;
-        const fallbackY = 100;
-        const fallbackWidth = 200;
-        const fallbackHeight = 80;
-        
-        // Draw black background panel
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-        ctx.fillRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
-        
-        // Draw green border
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
-        
-        // Draw distance text
-        ctx.save();
-        ctx.fillStyle = '#00ff00';
-        ctx.font = 'Bold 24px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${distance.toFixed(3)}m`, fallbackX + fallbackWidth/2, fallbackY + fallbackHeight/2);
-        ctx.restore();
-        
-        // console.log('🔄 Fallback panel drawn at:', {fallbackX, fallbackY, fallbackWidth, fallbackHeight});
-      }
-    } else {
-      console.log('❌ 3D midpoint behind camera:', {z: cameraPoint.z});
-      console.log('🔄 Drawing fallback measurement panel...');
-      
-      // Fallback: draw panel at fixed position
-      const fallbackX = 100;
-      const fallbackY = 100;
-      const fallbackWidth = 200;
-      const fallbackHeight = 80;
-      
-      // Draw black background panel
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-      ctx.fillRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
-      
-      // Draw green border
-      ctx.strokeStyle = '#00ff00';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
-      
-      // Draw distance text
-      ctx.save();
-      ctx.fillStyle = '#00ff00';
-      ctx.font = 'Bold 24px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${distance.toFixed(3)}m`, fallbackX + fallbackWidth/2, fallbackY + fallbackHeight/2);
-      ctx.restore();
-      
-      console.log('🔄 Fallback panel drawn at:', {fallbackX, fallbackY, fallbackWidth, fallbackHeight});
-    }
+  // Always draw the measurement panel at the top-right of the LEFT frame
+  const panelWidth = 200;
+  const panelHeight = 80;
+  const margin = 10;
+  const panelX = 640 - margin - panelWidth; // Left frame width is 640
+  const panelY = margin;
+  
+  // Draw black background panel
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+  ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+  
+  // Draw green border
+  ctx.strokeStyle = '#00ff00';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+  
+  // Draw distance text
+  ctx.save();
+  ctx.fillStyle = '#00ff00';
+  ctx.font = 'Bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
+  ctx.restore();
   }
   
   // Live mode variables
@@ -790,8 +717,10 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       performanceMonitor = new PerformanceMonitor();
       
       // Set video name for CSV export
-      const currentVideoType = localStorage.getItem('selectedVideoType') || 'long_ruler';
-      const videoConfig = VIDEO_CONFIG[currentVideoType] || VIDEO_CONFIG['long_ruler'];
+      const stored = localStorage.getItem('selectedVideoType');
+      const defaultKey = Object.keys(VIDEO_CONFIG)[0];
+      const currentVideoType = (stored && VIDEO_CONFIG[stored]) ? stored : defaultKey;
+      const videoConfig = VIDEO_CONFIG[currentVideoType];
       performanceMonitor.setVideoName(videoConfig.displayName);
       
       performanceMonitor.init();
@@ -914,7 +843,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
       
       // Check for stored video selection or use default
       const storedVideoType = localStorage.getItem('selectedVideoType');
-      const videoTypeToLoad = storedVideoType || 'long_ruler';
+      const defaultKey = Object.keys(VIDEO_CONFIG)[0];
+      const videoTypeToLoad = (storedVideoType && VIDEO_CONFIG[storedVideoType]) ? storedVideoType : defaultKey;
       
       // Clear the stored selection after reading it
       localStorage.removeItem('selectedVideoType');
@@ -1757,10 +1687,8 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
               }
             }
 
-            // Draw live measurement panel if start marker exists
+            // Draw measurement panel at top-right of left frame if start marker exists
             if (arRulerSystem.startPoint) {
-              // console.log('Drawing measurement info panel...');
-              
               // Get distance from UI (which is updated by updateMeasurement method)
               let distance = 0;
               if (arRulerSystem.ui && arRulerSystem.ui.distanceDisplay) {
@@ -1770,105 +1698,31 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
                   distance = parseFloat(distanceMatch[1]);
                 }
               }
+            
+              // Always draw the panel at the top-right of the left frame
+              const panelWidth = 120;
+              const panelHeight = 50;
+              const margin = 10;
+              const panelX = 640 - margin - panelWidth; // Left frame width is 640
+              const panelY = margin;
               
-              // Use the stored midpoint from 3D visualizer and convert to camera coordinates
-              let midPoint3D;
-              if (arRulerSystem.endPoint) {
-                // Final measurement: use stored midpoint between start and end markers
-                if (currentMidpoint) {
-                  midPoint3D = {
-                    x: currentMidpoint.x,
-                    y: currentMidpoint.y + MEASUREMENT_PANEL_OFFSET, // Panel offset above measurement line
-                    z: currentMidpoint.z
-                  };
-                } else {
-                  // Fallback to calculated midpoint
-                  midPoint3D = {
-                    x: (arRulerSystem.startPoint.x + arRulerSystem.endPoint.x) / 2,
-                    y: (arRulerSystem.startPoint.y + arRulerSystem.endPoint.y) / 2 + MEASUREMENT_PANEL_OFFSET,
-                    z: (arRulerSystem.startPoint.z + arRulerSystem.endPoint.z) / 2
-                  };
-                }
-              } else {
-                // Live measurement: hover over the end of the measurement line (camera position)
-                const { position: cameraPosition } = arRulerSystem.getCameraTransform(pose);
-                const markerDistance = arRulerSystem.ui ? arRulerSystem.ui.getMarkerDistance() : 0.0;
-                const { direction } = arRulerSystem.getCameraTransform(pose);
-                const currentEndPoint = arRulerSystem.raycastToWorld(cameraPosition, direction, 10.0, markerDistance);
-                
-                midPoint3D = {
-                  x: currentEndPoint.x,
-                  y: currentEndPoint.y + MEASUREMENT_PANEL_OFFSET, // Panel offset above measurement line
-                  z: currentEndPoint.z
-                };
-              }
+              // Draw black background panel
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+              ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
               
-              // Convert world coordinates to camera coordinates
-              const worldPoint = new THREE.Vector3(midPoint3D.x, midPoint3D.y, midPoint3D.z);
-              const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
+              // Draw green border
+              ctx.strokeStyle = '#00ff00';
+              ctx.lineWidth = 3;
+              ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
               
-              // console.log('=== LIVE MEASUREMENT PANEL DEBUG ===');
-              // console.log('World midpoint:', midPoint3D);
-              // console.log('Camera midpoint:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
-              // console.log('Distance:', distance);
-              // console.log('Has end marker:', !!arRulerSystem.endPoint);
-              
-              // Debug: Start marker transformation
-              const startWorldPoint = new THREE.Vector3(arRulerSystem.startPoint.x, arRulerSystem.startPoint.y, arRulerSystem.startPoint.z);
-              const startCameraPoint = startWorldPoint.clone().applyMatrix4(cameraInverseMatrix);
-              // console.log('Start marker camera coords:', {x: startCameraPoint.x, y: startCameraPoint.y, z: startCameraPoint.z});
-              
-              // Negate z-axis to flip behind camera to front of camera
-              cameraPoint.z = -cameraPoint.z;
-              // console.log('Negated z-axis:', {originalZ: -cameraPoint.z, newZ: cameraPoint.z});
-              
-              // console.log('Midpoint camera coords:', {x: cameraPoint.x, y: cameraPoint.y, z: cameraPoint.z});
-              // console.log('Camera intrinsics:', {fx, fy, cx, cy});
-              // console.log('Z check:', {z: cameraPoint.z, inFront: cameraPoint.z > 0.1});
-              
-              // Project camera coordinates to 2D image coordinates using pinhole camera model
-              if (cameraPoint.z > 0.1) { // Only points in front of camera
-                const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
-                const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
-                
-                // console.log('Projected coordinates:', {x, y});
-                // console.log('Bounds check:', {x: x, y: y, inBounds: x >= 0 && x < 640 && y >= 0 && y < 480});
-                
-                // Only draw if within image bounds (same as markers)
-                if (x >= 0 && x < 640 && y >= 0 && y < 480) {
-                  // console.log('✅ 3D midpoint visible, drawing panel at:', {x, y});
-                  
-                  // Panel dimensions - smaller panel
-                  const panelWidth = 120;
-                  const panelHeight = 50;
-                  const panelX = x - panelWidth / 2;
-                  const panelY = y - panelHeight / 2;
-                  
-                  // console.log('Panel position:', {panelX, panelY, panelWidth, panelHeight});
-                  
-                  // Draw black background panel
-                  ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-                  ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
-                  
-                  // Draw green border
-                  ctx.strokeStyle = '#00ff00';
-                  ctx.lineWidth = 3;
-                  ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
-                  
-                  // Draw distance text
-                  ctx.save();
-                  ctx.fillStyle = '#00ff00';
-                  ctx.font = 'Bold 24px Arial';
-                  ctx.textAlign = 'center';
-                  ctx.textBaseline = 'middle';
-                  ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
-                  ctx.restore();
-                  
-                  // console.log('✅ Panel drawn successfully at:', {panelX, panelY, panelWidth, panelHeight});
-                } else {
-                  console.log('❌ 3D midpoint outside image bounds:', {x, y, bounds: '640x480'});
-                }
-              }
+              // Draw distance text
+              ctx.save();
+              ctx.fillStyle = '#00ff00';
+              ctx.font = 'Bold 24px Arial';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(`${distance.toFixed(3)}m`, panelX + panelWidth/2, panelY + panelHeight/2);
+              ctx.restore();
             }
           }
 
