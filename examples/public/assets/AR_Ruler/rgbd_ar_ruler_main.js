@@ -778,11 +778,18 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     
     // Parse calibration data from YAML for 3D point projection
     let leftCameraIntrinsics = null;
+    let leftCameraDistortion = null;
+    console.log('Starting YAML parsing...');
     try {
-      leftCameraIntrinsics = parseCalibrationYAML(yamlText);
-      console.log('Parsed left camera intrinsics:', leftCameraIntrinsics);
+      const calibrationData = parseCalibrationYAML(yamlText);
+      leftCameraIntrinsics = calibrationData.intrinsics;
+      leftCameraDistortion = calibrationData.distortion;
+      console.log('SUCCESS: Parsed left camera intrinsics:', leftCameraIntrinsics);
+      console.log('SUCCESS: Parsed left camera distortion:', leftCameraDistortion);
     } catch (e) {
-      console.error('Failed to parse calibration YAML:', e);
+      console.error('FAILED to parse calibration YAML:', e);
+      console.log('YAML text length:', yamlText ? yamlText.length : 'null');
+      console.log('YAML text preview:', yamlText ? yamlText.substring(0, 200) : 'null');
     }
     
            // Persistent buffer allocation
@@ -925,6 +932,18 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     arRulerSystem = new ARRulerSystem();
     visualizer = new ARRulerVisualizer(view.scene, sceneVisualizer);
     measurementUI = new MeasurementUI();
+    
+    if (leftCameraIntrinsics) {
+      console.log('Setting camera intrinsics for ARSimpleView:', leftCameraIntrinsics);
+      if (typeof view.setCameraIntrinsics === 'function') {
+        view.setCameraIntrinsics(leftCameraIntrinsics);
+        console.log('Set D345i rectified camera intrinsics for ARSimpleView');
+      } else {
+        console.error('ERROR: view.setCameraIntrinsics is not a function');
+      }
+    } else {
+      console.log('ERROR: leftCameraIntrinsics is null/undefined - YAML parsing may have failed');
+    }
     
     // Make them globally accessible for reset functionality
     window.arRulerSystem = arRulerSystem;

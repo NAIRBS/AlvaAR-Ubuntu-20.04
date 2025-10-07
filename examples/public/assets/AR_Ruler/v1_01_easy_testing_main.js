@@ -290,6 +290,12 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
     visualizer = new ARRulerVisualizer(view.scene, sceneVisualizer);
     measurementUI = new MeasurementUI();
     
+    // Set D345i camera intrinsics for ARSimpleView (rectified data)
+    if (leftCameraIntrinsics) {
+      view.setCameraIntrinsics(leftCameraIntrinsics);
+      console.log('Set D345i rectified camera intrinsics for ARSimpleView');
+    }
+    
     // Add toggle button for right camera visibility
     const toggleRightCameraBtn = document.getElementById('toggle-right-camera');
     if (toggleRightCameraBtn) {

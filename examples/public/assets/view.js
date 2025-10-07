@@ -162,6 +162,9 @@ class ARSimpleView
         this.camera = new THREE.PerspectiveCamera( 75, width / height, 0.1, 50 ); // the 20 was originally 1000 to limit the frustum length (how far the camera can see)
         this.camera.rotation.reorder( 'YXZ' );
         this.camera.updateProjectionMatrix();
+        
+        // D345i camera intrinsics for rectified data
+        this.cameraIntrinsics = null;
 
         this.scene = new THREE.Scene();
         this.scene.add( new THREE.AmbientLight( 0x808080 ) );
@@ -180,6 +183,66 @@ class ARSimpleView
         }
     }
 
+    // Set D345i camera intrinsics for rectified data
+    setCameraIntrinsics(intrinsics) {
+        this.cameraIntrinsics = intrinsics;
+        
+        if (intrinsics) {
+            const { fx, fy, cx, cy, width, height } = intrinsics;
+            
+            // Calculate FOV from focal length (more reliable approach)
+            const fovX = 2 * Math.atan(width / (2 * fx)) * (180 / Math.PI);
+            const fovY = 2 * Math.atan(height / (2 * fy)) * (180 / Math.PI);
+            
+            // Use the smaller FOV to ensure objects fit
+            const fov = Math.min(fovX, fovY);
+            
+            // Update THREE.js camera with correct parameters
+            this.camera.fov = fov;
+            this.camera.aspect = width / height;
+            this.camera.updateProjectionMatrix();
+            
+            // Store principal point offset for manual correction if needed
+            this.principalPointOffset = {
+                x: cx - width / 2,   // Offset from center
+                y: cy - height / 2
+            };
+            
+            console.log('Updated camera with D345i rectified intrinsics:', { 
+                fx, fy, cx, cy, fov, 
+                principalPointOffset: this.principalPointOffset 
+            });
+            
+            // Debug: Calculate expected FOV for verification
+            const expectedFovX = 2 * Math.atan(640 / (2 * 385.004)) * (180 / Math.PI);
+            const expectedFovY = 2 * Math.atan(480 / (2 * 385.004)) * (180 / Math.PI);
+            console.log('Expected FOV calculation:', { 
+                expectedFovX, expectedFovY, 
+                calculatedFov: fov,
+                fx, fy, width, height 
+            });
+        }
+    }
+
+    // Apply principal point correction to 3D objects if needed
+    applyPrincipalPointCorrection() {
+        if (!this.principalPointOffset) return;
+        
+        // Apply offset to all 3D objects in the scene
+        this.scene.traverse((object) => {
+            if (object.isMesh && object.userData.isMarker) {
+                // Store original position
+                if (!object.userData.originalPosition) {
+                    object.userData.originalPosition = object.position.clone();
+                }
+                
+                // Apply principal point offset
+                object.position.x = object.userData.originalPosition.x + this.principalPointOffset.x * 0.001;
+                object.position.y = object.userData.originalPosition.y - this.principalPointOffset.y * 0.001;
+            }
+        });
+    }
+
     updateCameraPose( pose )
     {
         this.applyPose( pose, this.camera.quaternion, this.camera.position );
@@ -189,6 +252,9 @@ class ARSimpleView
         {
             this.mapView.camHelper.update();
         }
+
+        // Apply principal point correction if needed
+        this.applyPrincipalPointCorrection();
 
         this.renderer.render( this.scene, this.camera );
 

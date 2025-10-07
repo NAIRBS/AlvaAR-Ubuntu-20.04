@@ -22,52 +22,130 @@ export async function waitForEmscriptenModule(ModuleInstance) {
   });
 }
 
-// Parse calibration YAML to extract left camera intrinsics
+// Parse calibration YAML to extract left camera intrinsics and distortion coefficients
 export function parseCalibrationYAML(yamlText) {
   const lines = yamlText.split('\n');
   let kMatrixData = null;
+  let dMatrixData = null;
   let inKMatrix = false;
-  let dataLine = '';
+  let inDMatrix = false;
+  let kDataLine = '';
+  let dDataLine = '';
   
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmedLine = line.trim();
     
     // Look for LEFT.K matrix
     if (trimmedLine === 'LEFT.K: !!opencv-matrix') {
       inKMatrix = true;
+      inDMatrix = false;
+      continue;
+    }
+    
+    // Look for LEFT.D matrix (distortion coefficients)
+    if (trimmedLine === 'LEFT.D: !!opencv-matrix') {
+      inDMatrix = true;
+      inKMatrix = false;
       continue;
     }
     
     // If we're in the K matrix section, look for data
     if (inKMatrix) {
       if (trimmedLine.startsWith('data: [')) {
-        dataLine = trimmedLine;
-        break;
+        kDataLine = trimmedLine;
+        inKMatrix = false; // Stop looking for K matrix data
+        continue;
       }
+    }
+    
+    // If we're in the D matrix section, look for data
+    if (inDMatrix) {
+      if (trimmedLine.startsWith('data: [')) {
+        dDataLine = trimmedLine;
+        inDMatrix = false; // Stop looking for D matrix data
+        continue;
+      }
+    }
+    
+    // Reset flags when we encounter other matrix sections
+    if (trimmedLine.includes(': !!opencv-matrix') && !trimmedLine.includes('LEFT.K') && !trimmedLine.includes('LEFT.D')) {
+      inKMatrix = false;
+      inDMatrix = false;
     }
   }
   
-  if (dataLine) {
-    // Extract the data array from the line
-    // Format: "data: [385.004, 0.0, 325.346, 0.0, 385.004, 238.491, 0.0, 0.0, 1.0]"
-    const dataMatch = dataLine.match(/data:\s*\[(.*?)\]/);
+  let intrinsics = null;
+  let distortion = null;
+  let width = 640;  // Default values
+  let height = 480;
+  
+  // Parse width and height from YAML header
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('LEFT.width:')) {
+      width = parseInt(line.split(':')[1].trim());
+    } else if (line.startsWith('LEFT.height:')) {
+      height = parseInt(line.split(':')[1].trim());
+    }
+  }
+  
+  
+  // Parse intrinsics matrix
+  if (kDataLine) {
+    const dataMatch = kDataLine.match(/data:\s*\[(.*?)\]/);
     if (dataMatch) {
       const dataString = dataMatch[1];
       const values = dataString.split(',').map(v => parseFloat(v.trim()));
       
       if (values.length >= 9) {
         // OpenCV 3x3 matrix format: [fx, 0, cx, 0, fy, cy, 0, 0, 1]
-        return {
+        intrinsics = {
           fx: values[0],  // 385.004
           fy: values[4],  // 385.004
           cx: values[2],  // 325.346
-          cy: values[5]   // 238.491
+          cy: values[5],  // 238.491
+          width: width,   // From YAML header
+          height: height  // From YAML header
+        };
+        
+      }
+    }
+  }
+  
+  // Parse distortion coefficients
+  if (dDataLine) {
+    const dataMatch = dDataLine.match(/data:\s*\[(.*?)\]/);
+    if (dataMatch) {
+      const dataString = dataMatch[1];
+      const values = dataString.split(',').map(v => parseFloat(v.trim()));
+      
+      if (values.length >= 5) {
+        // OpenCV distortion coefficients: [k1, k2, p1, p2, k3]
+        distortion = {
+          k1: values[0],
+          k2: values[1],
+          p1: values[2],
+          p2: values[3],
+          k3: values[4]
         };
       }
     }
   }
   
-  throw new Error('Could not parse LEFT.K matrix from YAML');
+  
+  if (!intrinsics) {
+    console.error('Failed to parse LEFT.K matrix from YAML');
+    console.log('YAML content preview:');
+    console.log(yamlText.substring(0, 500));
+    throw new Error('Could not parse LEFT.K matrix from YAML');
+  }
+  
+  
+  return {
+    intrinsics,
+    distortion
+  };
 }
 
 // Draw plane outline on 2D frame
