@@ -116,25 +116,45 @@ const VIDEO_CONFIG = {
     rightFile: 'Indoor_Videos/Balcony_right_dark_35cm.mp4',
     displayName: '8. dark_balcony_LF_35cm'
   },
-  '9. dark_alley_LF_150cm': {
-    leftFile: 'Outdoor_Videos/Alley_left_dark_150cm.mp4',
-    rightFile: 'Outdoor_Videos/Alley_right_dark_150cm.mp4',
-    displayName: '9. dark_alley_LF_150cm'
+  '9. light_walkway_HF_150cm': {
+    leftFile: 'Outdoor_Videos/Walkway_left_light_150cm.mp4',
+    rightFile: 'Outdoor_Videos/Walkway_right_light_150cm.mp4',
+    displayName: '9. light_walkway_HF_150cm'
   },
-  '10. dark_carpark_LF_66cm': {
-    leftFile: 'Outdoor_Videos/Carpark_left_dark_66cm.mp4',
-    rightFile: 'Outdoor_Videos/Carpark_right_dark_66cm.mp4',
-    displayName: '10. dark_carpark_LF_66cm'
-  },
-  '11. dark_walkway_LF_150cm': {
+  '10. dark_walkway_HF_150cm': {
     leftFile: 'Outdoor_Videos/Walkway_left_dark_150cm.mp4',
     rightFile: 'Outdoor_Videos/Walkway_right_dark_150cm.mp4',
-    displayName: '11. dark_walkway_LF_150cm'
+    displayName: '10. dark_walkway_HF_150cm'
   },
-  '12. dark_pillar_LF_150cm': {
+  '11. light_pillar_HF_150cm': {
+    leftFile: 'Outdoor_Videos/Pillar_left_light_150cm.mp4',
+    rightFile: 'Outdoor_Videos/Pillar_right_light_150cm.mp4',
+    displayName: '11. light_pillar_HF_150cm'
+  },
+  '12. dark_pillar_HF_150cm': {
     leftFile: 'Outdoor_Videos/Pillar_left_dark_150cm.mp4',
     rightFile: 'Outdoor_Videos/Pillar_right_dark_150cm.mp4',
-    displayName: '12. dark_pillar_LF_150cm'
+    displayName: '12. dark_pillar_HF_150cm'
+  },
+  '13. light_alley_LF_150cm': {
+    leftFile: 'Outdoor_Videos/Alley_left_light_150cm.mp4',
+    rightFile: 'Outdoor_Videos/Alley_right_light_150cm.mp4',
+    displayName: '13. light_alley_LF_150cm'
+  },
+  '14. dark_alley_LF_150cm': {
+    leftFile: 'Outdoor_Videos/Alley_left_dark_150cm.mp4',
+    rightFile: 'Outdoor_Videos/Alley_right_dark_150cm.mp4',
+    displayName: '14. dark_alley_LF_150cm'
+  },
+  '15. light_carpark_LF_66cm': {
+    leftFile: 'Outdoor_Videos/Carpark_left_light_66cm.mp4',
+    rightFile: 'Outdoor_Videos/Carpark_right_light_66cm.mp4',
+    displayName: '15. light_carpark_LF_66cm'
+  },
+  '16. dark_carpark_LF_66cm': {
+    leftFile: 'Outdoor_Videos/Carpark_left_dark_66cm.mp4',
+    rightFile: 'Outdoor_Videos/Carpark_right_dark_66cm.mp4',
+    displayName: '16. dark_carpark_LF_66cm'
   }
 };
 
