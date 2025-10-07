@@ -1682,69 +1682,7 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
               cy = leftCameraIntrinsics.cy;
             }
 
-            // Render start marker if it exists
-            if (arRulerSystem.startPoint) {
-              // Transform world coordinates to camera coordinates (reverse of C++ backend)
-              // C++ backend does: pt_world = current_pose * pt_camera
-              // Frontend does: pt_camera = current_pose.inverse() * pt_world
-              const worldPoint = new THREE.Vector3(arRulerSystem.startPoint.x, arRulerSystem.startPoint.y, arRulerSystem.startPoint.z);
-              const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
 
-              // Project camera coordinates to 2D image coordinates using pinhole camera model
-              if (cameraPoint.z > 0.1) { // Only points in front of camera
-                const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
-                const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
-                
-                // Only draw if within image bounds
-                if (x >= 0 && x < 640 && y >= 0 && y < 480) {
-                  // Save context state before drawing start marker
-                  ctx.save();
-                  // Draw green circle for start marker
-                  ctx.fillStyle = '#00ff00';
-                  ctx.beginPath();
-                  ctx.arc(x, y, 8, 0, 2 * Math.PI);
-                  ctx.fill();
-                  
-                  // Draw white border
-                  ctx.strokeStyle = '#ffffff';
-                  ctx.lineWidth = 2;
-                  ctx.stroke();
-                  // Restore context state after drawing start marker
-                  ctx.restore();
-                }
-              }
-            }
-
-            // Render end marker if it exists
-            if (arRulerSystem.endPoint) {
-              // Transform world coordinates to camera coordinates
-              const worldPoint = new THREE.Vector3(arRulerSystem.endPoint.x, arRulerSystem.endPoint.y, arRulerSystem.endPoint.z);
-              const cameraPoint = worldPoint.clone().applyMatrix4(cameraInverseMatrix);
-
-              // Project camera coordinates to 2D image coordinates using pinhole camera model
-              if (cameraPoint.z > 0.1) { // Only points in front of camera
-                const x = (cameraPoint.x * fx / cameraPoint.z) + cx;
-                const y = (cameraPoint.y * fy / cameraPoint.z) + cy;
-                
-                // Only draw if within image bounds
-                if (x >= 0 && x < 640 && y >= 0 && y < 480) {
-                  // Save context state before drawing end marker
-                  ctx.save();
-                  // Draw red circle for end marker
-                  ctx.fillStyle = '#ff0000';
-                  ctx.beginPath();
-                  ctx.arc(x, y, 8, 0, 2 * Math.PI);
-                  ctx.fill();
-                  
-                  // Draw white border
-                  ctx.strokeStyle = '#ffffff';
-                  ctx.lineWidth = 2;
-                  ctx.stroke();
-                  // Restore context state after drawing end marker
-                  ctx.restore();
-                }
-              }
-            }
 
             // Draw measurement panel at top-right of left frame if start marker exists
             if (arRulerSystem.startPoint) {
