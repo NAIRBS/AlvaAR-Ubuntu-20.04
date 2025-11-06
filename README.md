@@ -74,17 +74,34 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
     nvm install 18
     nvm use 18
 
-    # Setup IP address resolution for same network streaming
-    sudo apt update
-    sudo apt install avahi-daemon avahi-utils libnss-mdns
+    # For cloudflare internet streaming of frames
+    # Download
+    wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
 
-    sudo systemctl enable avahi-daemon
-    sudo systemctl start avahi-daemon
+    # Make executable
+    chmod +x cloudflared-linux-amd64
 
-    systemctl status avahi-daemon
+    # Move to PATH
+    sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
 
-    # You might have to change the hostname based on your server, its now hardcoded to my desktop.
-    avahi-resolve-host-name $(hostname).local
+    # Test
+    cloudflared --version
+
+    # Run the publishing of data on port 8765 (hardcoded in the script)
+    python3 your_ros2_ws_server.py
+
+    # Publish the 8765 port websocket data to the internet
+    cloudflared tunnel --url http://localhost:8765
+
+    # You will see something like
+    2025-11-06T08:45:16Z INF Requesting new quick Tunnel on trycloudflare.com...
+    2025-11-06T08:45:22Z INF +--------------------------------------------------------------------------------------------+
+    2025-11-06T08:45:22Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
+    2025-11-06T08:45:22Z INF |  https://dispatch-omaha-ceremony-charms.trycloudflare.com                                  |
+    2025-11-06T08:45:22Z INF +--------------------------------------------------------------------------------------------+
+
+    # Take the URL as it in and fill in the input field in rgbd_live_internet_viewer.html
+
 ```
 
 ## After running the above, you need to build 3 things
