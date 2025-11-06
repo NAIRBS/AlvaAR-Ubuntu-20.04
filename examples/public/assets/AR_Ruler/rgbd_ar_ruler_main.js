@@ -718,20 +718,49 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
 
   // WebSocket connection for live camera feed
   function connectWebSocketFrameStream(callback) {
-    const ws = new WebSocket("ws://localhost:8765");
+    // Resolve WebSocket URL from input/localStorage/window with fallback
+    let wsUrl = null;
+    try {
+      const input = document.getElementById('ws-domain-input');
+      if (input && input.value && input.value.trim()) {
+        wsUrl = input.value.trim();
+      }
+    } catch (e) {}
+    if (!wsUrl && typeof window !== 'undefined' && window.WEBSOCKET_URL) {
+      wsUrl = window.WEBSOCKET_URL;
+    }
+    if (!wsUrl) {
+      try { wsUrl = localStorage.getItem('WEBSOCKET_URL'); } catch (e) {}
+    }
+    if (!wsUrl || !wsUrl.trim()) {
+      wsUrl = "ws://localhost:8765";
+    }
+    wsUrl = wsUrl.trim();
+    // Normalize scheme: preserve ws/wss, convert http(s) -> ws://, default to ws://
+    if (wsUrl.startsWith('ws://') || wsUrl.startsWith('wss://')) {
+      // keep as-is
+    } else if (wsUrl.startsWith('https://')) {
+      wsUrl = 'wss://' + wsUrl.slice('https://'.length);
+    } else if (wsUrl.startsWith('http://')) {
+      wsUrl = 'wss://' + wsUrl.slice('http://'.length);
+    } else {
+      wsUrl = 'wss://' + wsUrl;
+    }
+
+    const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
     ws.onopen = () => {
-      console.log("✅ Connected to WebSocket video stream");
+      console.log("✅ Connected to WebSocket video stream:", wsUrl);
       // Hide any previous error messages
       hideWebSocketError();
     };
     ws.onerror = err => {
       console.error("❌ WebSocket error:", err);
-      showWebSocketError("Failed to connect to live camera stream. Please ensure the camera server is running on localhost:8765");
+      showWebSocketError(`Failed to connect to live camera stream at ${wsUrl}.`);
     };
     ws.onclose = () => {
-      console.warn("⚠️ WebSocket connection closed");
-      showWebSocketError("Live camera connection lost. Attempting to reconnect...");
+      console.warn("⚠️ WebSocket connection closed:", wsUrl);
+      showWebSocketError(`Live camera connection to ${wsUrl} lost. Attempting to reconnect...`);
     };
     ws.onmessage = async event => {
       try {

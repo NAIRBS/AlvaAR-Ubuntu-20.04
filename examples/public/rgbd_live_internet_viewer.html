@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
+  <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
+  <title>RGBD Live AR Ruler - Online Live View</title>
+  <link rel="stylesheet" href="./assets/AR_Ruler/rgbd_ar_ruler_live_styles.css">
+</head>
+<body>
+  <div id="main-container">
+    <div id="video-selection-top">
+      <button id="toggle-panels" title="Toggle Panels">👁️</button>
+    </div>
+    <div id="container">
+      <div id="crosshair"></div>
+      <div id="left-frame-click-overlay"></div>
+    </div>
+    <div id="measurement-panel">
+      <div id="distance-display">0.000 meters</div>
+      <div id="nearest-distance-display">Nearest: 0.000 meters</div>
+      <div id="status-display">Place start marker</div>
+      
+      <div id="marker-distance-control">
+        <label for="marker-distance-slider">Place Marker forward by:</label>
+        <input type="range" id="marker-distance-slider" min="0.0" max="0.5" step="0.05" value="0.0">
+        <div id="marker-distance-value">0.00 meters</div>
+      </div>
+      
+      <div id="control-buttons">
+        <div class="button-row">
+          <button id="place-marker">Mark Start Point</button>
+          <button id="end-measurement">Mark End Point</button>
+          <button id="reset-measurement">Reset</button>
+          <button id="draw-plane">Draw Plane</button>
+        </div>
+        <button id="toggle-right-camera">Show Right Camera</button>
+      </div>
+    </div>
+    <div id="visualizer-panel"></div>
+  </div>
+<div id="overlay">
+  <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
+    <label for="ws-domain-input" style="color:#fff;font-family:Helvetica, Arial, sans-serif;">WebSocket URL or domain</label>
+    <input id="ws-domain-input" type="text" style="padding:8px 10px;border-radius:6px;border:1px solid #ccc;min-width:320px;" placeholder="ws://localhost:8765 or wss://your-domain" value="ws://localhost:8765" />
+    <button id="start_button">Start</button>
+  </div>
+  <div id="splash"></div>
+</div>
+
+<script type="module">
+  import Module from './assets/alva_ar.js';
+  import { Stats } from './assets/stats.js';
+  import { ARSimpleView, ARSimpleMap } from './assets/view.js';
+  import { Video } from './assets/utils.js';
+  import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
+  
+  import { main } from './assets/AR_Ruler/rgbd_ar_ruler_main.js';
+  import { PerformanceMonitor } from './assets/AR_Ruler/performance_monitor.js';
+
+  // Capture input before app starts; main() will read this on connect
+  window.addEventListener('load', () => {
+    const startBtn = document.getElementById('start_button');
+    const input = document.getElementById('ws-domain-input');
+    if (startBtn && input) {
+      startBtn.addEventListener('click', () => {
+        let raw = (input.value || '').trim();
+        if (raw) {
+          // Preserve ws/wss as-is
+          if (raw.startsWith('ws://') || raw.startsWith('wss://')) {
+            // no-op
+          } else if (raw.startsWith('https://')) {
+            raw = 'wss://' + raw.slice('https://'.length);
+          } else if (raw.startsWith('http://')) {
+            raw = 'wss://' + raw.slice('http://'.length);
+          } else {
+            // No scheme provided; default to ws://
+            raw = 'wss://' + raw;
+          }
+          window.WEBSOCKET_URL = raw;
+          try { localStorage.setItem('WEBSOCKET_URL', raw); } catch(e) {}
+        }
+      }, { once: true });
+    }
+    main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, true, PerformanceMonitor);
+  });
+</script>
+</body>
+</html>
+
+
