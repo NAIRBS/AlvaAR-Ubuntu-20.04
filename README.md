@@ -6,6 +6,8 @@ SLAM is the core building block of Augmented Reality applications, focusing on w
 
 ![AR Ruler](https://github.com/user-attachments/assets/fa7505c0-54e9-4764-b0fb-5f062d9b4910)
 
+![chrome_rXAHypeoSY](https://github.com/user-attachments/assets/da3eefbf-2a30-411a-ba67-e10a1ac34f76)
+
 ## Examples
 The examples use [ThreeJS](https://threejs.org/) to apply and render the estimated camera pose to a 3d environment.  
 
@@ -331,10 +333,9 @@ function loop()
 ```
 
 
-## Roadmap
-- [ ] Improve the initialisation phase to be more stable and predictable.
-- [ ] Move feature extraction and tracking to GPU.
-- [ ] Blend visual SLAM with IMU data to increase robustness. 
+## Credits and Acknowledgements
+- Favicon source: [Among Us Online's Favicon](https://amongusplay.online/)
+- Spinny Cat Video: [W&W - OIIA OIIA (Spinning Cat)](https://youtu.be/IxX_QHay02M)
 
 
 ## License

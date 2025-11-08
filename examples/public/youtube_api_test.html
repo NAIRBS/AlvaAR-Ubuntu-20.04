@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .test-section {
+      margin: 20px 0;
+      padding: 20px;
+      background: #2a2a2a;
+      border-radius: 8px;
+    }
+    iframe {
+      border: 2px solid #00ff00;
+      margin: 10px 0;
+    }
+    .log {
+      background: #000;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .log-entry {
+      margin: 2px 0;
+      padding: 2px 5px;
+    }
+    .log-entry.info { color: #00ff00; }
+    .log-entry.warn { color: #ffaa00; }
+    .log-entry.error { color: #ff0000; }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 5px;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>YouTube API Autoplay Test</h1>
+    
+    <div class="test-section">
+      <h2>Test 1: Basic iframe with autoplay & mute</h2>
+      <iframe 
+        id="test1"
+        width="640" 
+        height="360" 
+        src="https://www.youtube.com/embed/tgbNymZ7vqY?autoplay=1&mute=1&controls=1&enablejsapi=1&playsinline=1"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+      </iframe>
+      <p>Expected: Video should autoplay (muted) when page loads</p>
+    </div>
+    
+    <div class="test-section">
+      <h2>Test 2: Dynamically created iframe</h2>
+      <button onclick="createDynamicIframe()">Create Dynamic Iframe</button>
+      <div id="test2-container"></div>
+      <p>Expected: Video should autoplay (muted) when iframe is created</p>
+    </div>
+    
+    <div class="test-section">
+      <h2>Test 3: YouTube IFrame API</h2>
+      <button onclick="testYouTubeAPI()">Test YouTube API</button>
+      <div id="test3-container"></div>
+      <p>Expected: Video should autoplay using YouTube IFrame API</p>
+    </div>
+    
+    <div class="test-section">
+      <h2>Console Logs</h2>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+
+  <script>
+    const log = document.getElementById('log');
+    
+    // Store original console methods
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    
+    function addLog(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+      // Use original console method to avoid recursion
+      originalLog(message);
+    }
+    
+    // Override console methods to capture logs
+    console.log = (...args) => {
+      originalLog.apply(console, args);
+      addLog(args.join(' '), 'info');
+    };
+    console.warn = (...args) => {
+      originalWarn.apply(console, args);
+      addLog(args.join(' '), 'warn');
+    };
+    console.error = (...args) => {
+      originalError.apply(console, args);
+      addLog(args.join(' '), 'error');
+    };
+    
+    // CRITICAL: Define onYouTubeIframeAPIReady BEFORE loading the script
+    // According to YouTube API docs, this must be a global function
+    let youtubePlayer = null;
+    let youtubeAPIReady = false;
+    
+    function onYouTubeIframeAPIReady() {
+      addLog('✅ YouTube IFrame API ready! (callback called)', 'info');
+      youtubeAPIReady = true;
+      
+      // Check if player div already exists (if test was called before API loaded)
+      const playerDiv = document.getElementById('youtube-player');
+      if (playerDiv) {
+        addLog('Test 3: Player div found, creating player...', 'info');
+        createYouTubePlayer();
+      } else {
+        addLog('Test 3: Player div not found yet, waiting for button click...', 'info');
+      }
+    }
+    
+    // Make it globally accessible (though function declaration already does this)
+    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+    
+    // Load YouTube IFrame API asynchronously (as per documentation)
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    addLog('YouTube IFrame API script tag added to page', 'info');
+    
+    // Test 1: Check if basic iframe loads
+    document.getElementById('test1').addEventListener('load', () => {
+      addLog('Test 1: Basic iframe loaded', 'info');
+      setTimeout(() => {
+        addLog('Test 1: Checking if video is playing...', 'info');
+        // Can't directly check, but we can see if iframe loaded
+      }, 2000);
+    });
+    
+    // Test 2: Dynamic iframe creation
+    function createDynamicIframe() {
+      addLog('Test 2: Creating dynamic iframe...', 'info');
+      const container = document.getElementById('test2-container');
+      container.innerHTML = '';
+      
+      const iframe = document.createElement('iframe');
+      iframe.width = '640';
+      iframe.height = '360';
+      iframe.src = 'https://www.youtube.com/embed/tgbNymZ7vqY?autoplay=1&mute=1&controls=1&enablejsapi=1&playsinline=1';
+      iframe.frameBorder = '0';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      iframe.style.border = '2px solid #ff0000';
+      
+      iframe.addEventListener('load', () => {
+        addLog('Test 2: Dynamic iframe loaded', 'info');
+        setTimeout(() => {
+          addLog('Test 2: Iframe should be playing now (check visually)', 'info');
+        }, 1000);
+      });
+      
+      container.appendChild(iframe);
+      addLog('Test 2: Iframe added to DOM', 'info');
+    }
+    
+    // Test 3: YouTube IFrame API
+    function createYouTubePlayer() {
+      if (!window.YT || !window.YT.Player) {
+        addLog('Test 3: ❌ YT.Player not available', 'error');
+        return;
+      }
+      
+      const playerDiv = document.getElementById('youtube-player');
+      if (!playerDiv) {
+        addLog('Test 3: ❌ Player div not found', 'error');
+        return;
+      }
+      
+      try {
+        addLog('Test 3: Creating YouTube player...', 'info');
+        addLog('Test 3: YT object: ' + (window.YT ? 'exists' : 'missing'), 'info');
+        addLog('Test 3: YT.Player: ' + (window.YT && window.YT.Player ? 'exists' : 'missing'), 'info');
+        
+        youtubePlayer = new YT.Player('youtube-player', {
+          height: '360',
+          width: '640',
+          videoId: 'tgbNymZ7vqY',
+          playerVars: {
+            'autoplay': 1,
+            'mute': 1,
+            'controls': 1,
+            'enablejsapi': 1,
+            'playsinline': 1,
+            'rel': 0
+          },
+          events: {
+            'onReady': function(event) {
+              addLog('Test 3: ✅ YouTube player ready! (onReady event)', 'info');
+              addLog('Test 3: Player state: ' + event.target.getPlayerState(), 'info');
+              try {
+                // Call playVideo() directly (as per documentation example)
+                event.target.playVideo();
+                addLog('Test 3: playVideo() called', 'info');
+              } catch (e) {
+                addLog('Test 3: Error calling playVideo(): ' + e.message, 'error');
+                addLog('Test 3: Error stack: ' + e.stack, 'error');
+              }
+            },
+            'onStateChange': function(event) {
+              const states = ['unstarted', 'ended', 'playing', 'paused', 'buffering', 'cued'];
+              const stateName = states[event.data] || 'unknown';
+              addLog(`Test 3: Player state changed to: ${stateName} (${event.data})`, 'info');
+              if (event.data === YT.PlayerState.PLAYING) {
+                addLog('Test 3: ✅✅✅ Video is PLAYING!', 'info');
+              } else if (event.data === YT.PlayerState.UNSTARTED) {
+                addLog('Test 3: ⚠️ Video is UNSTARTED (autoplay may be blocked)', 'warn');
+              } else if (event.data === YT.PlayerState.CUED) {
+                addLog('Test 3: Video is CUED (ready but not playing)', 'info');
+              }
+            },
+            'onError': function(event) {
+              addLog('Test 3: ❌ Player error: ' + event.data, 'error');
+              const errorMessages = {
+                2: 'Invalid parameter value',
+                5: 'HTML5 player error',
+                100: 'Video not found',
+                101: 'Video not allowed in embedded players',
+                150: 'Video not allowed in embedded players'
+              };
+              addLog('Test 3: Error meaning: ' + (errorMessages[event.data] || 'Unknown error'), 'error');
+            }
+          }
+        });
+        addLog('Test 3: Player object created successfully', 'info');
+      } catch (e) {
+        addLog('Test 3: ❌ Error creating player: ' + e.message, 'error');
+        console.error(e);
+      }
+    }
+    
+    function testYouTubeAPI() {
+      addLog('Test 3: Testing YouTube IFrame API...', 'info');
+      const container = document.getElementById('test3-container');
+      container.innerHTML = '';
+      
+      const playerDiv = document.createElement('div');
+      playerDiv.id = 'youtube-player';
+      playerDiv.style.width = '640px';
+      playerDiv.style.height = '360px';
+      playerDiv.style.border = '2px solid #00ff00';
+      container.appendChild(playerDiv);
+      
+      // Check if API is loaded
+      if (typeof YT !== 'undefined' && YT.Player) {
+        addLog('Test 3: API already loaded, creating player...', 'info');
+        createYouTubePlayer();
+      } else if (youtubeAPIReady) {
+        addLog('Test 3: API ready flag set but YT not available, waiting...', 'warn');
+        // Poll for YT object
+        let attempts = 0;
+        const checkYT = setInterval(() => {
+          attempts++;
+          if (typeof YT !== 'undefined' && YT.Player) {
+            clearInterval(checkYT);
+            addLog('Test 3: YT object available after ' + attempts + ' attempts', 'info');
+            createYouTubePlayer();
+          } else if (attempts > 20) {
+            clearInterval(checkYT);
+            addLog('Test 3: ❌ YT object not available after 10 seconds', 'error');
+          }
+        }, 500);
+      } else {
+        addLog('Test 3: ⏳ Waiting for YouTube IFrame API to load...', 'warn');
+        addLog('Test 3: Current YT status: ' + (typeof YT !== 'undefined' ? 'exists' : 'not loaded'), 'info');
+        addLog('Test 3: onYouTubeIframeAPIReady defined: ' + (typeof onYouTubeIframeAPIReady !== 'undefined'), 'info');
+        
+        // Poll for API
+        let attempts = 0;
+        const checkAPI = setInterval(() => {
+          attempts++;
+          if (typeof YT !== 'undefined' && YT.Player) {
+            clearInterval(checkAPI);
+            addLog('Test 3: API loaded after ' + attempts + ' attempts', 'info');
+            createYouTubePlayer();
+          } else if (attempts > 20) {
+            clearInterval(checkAPI);
+            addLog('Test 3: ❌ API not loaded after 10 seconds', 'error');
+            addLog('Test 3: Check browser console for script loading errors', 'error');
+          }
+        }, 500);
+      }
+    }
+    
+    // Listen for YouTube postMessage events
+    window.addEventListener('message', (event) => {
+      if (event.origin === 'https://www.youtube.com') {
+        addLog('📨 Message from YouTube: ' + JSON.stringify(event.data), 'info');
+      }
+    });
+    
+    // Initial log
+    addLog('Page loaded. Ready to test YouTube autoplay.', 'info');
+    addLog('Check each test section above to see if videos autoplay.', 'info');
+  </script>
+</body>
+</html>
+
