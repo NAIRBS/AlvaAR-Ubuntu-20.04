@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Three.js Cardboard VR Player</title>
+    <!-- Essential for full-screen and mobile VR alignment -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        canvas {
+            display: block;
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column; /* Changed to column for better instruction display */
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.9); /* Darker background */
+            z-index: 10;
+            color: white;
+            padding: 20px;
+            font-family: sans-serif;
+            text-align: center;
+        }
+        #startButton {
+            padding: 20px 40px;
+            font-size: 24px;
+            cursor: pointer;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: background-color 0.2s;
+            margin-top: 20px;
+        }
+        #startButton:hover {
+            background-color: #0b5fb6;
+        }
+        .error-message {
+            max-width: 80%;
+            padding: 15px;
+            background-color: #f44336;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .instructions {
+            padding: 15px;
+            background-color: #333;
+            border-radius: 8px;
+            text-align: left;
+            margin-top: 20px;
+        }
+        .instructions code {
+            display: block;
+            background-color: #111;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 5px 0;
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hidden video element (src will be set via Blob URL in JS) -->
+    <video id="video-source" loop muted playsinline style="display:none;"></video>
+    
+    <!-- Overlay to force user interaction and start the experience -->
+    <div id="overlay">
+        <div class="error-message">
+            **CRITICAL ERROR: Cannot load video.**<br>
+            Browser security prevents video textures from loading when opening files directly (e.g., `file:///`).
+        </div>
+
+        <div class="instructions">
+            <p><strong>To fix this, please follow these steps:</strong></p>
+            <ol style="margin-left: 20px;">
+                <li>Place **index.html** and **hungry.mp4** in the same folder.</li>
+                <li>Open your computer's **Terminal** or **Command Prompt**.</li>
+                <li>Navigate to that folder using the <code>cd</code> command.</li>
+                <li>Run one of the following commands to start a local web server:
+                    <code>python -m http.server 8000</code><br>
+                    (For older Python versions: <code>python -m SimpleHTTPServer 8000</code>)
+                </li>
+                <li>Open your browser and go to: 
+                    <code>http://localhost:8000/index.html</code>
+                </li>
+            </ol>
+            <p style="margin-top: 15px;">After successfully loading, the "Tap to Start VR Video" button will appear.</p>
+        </div>
+        
+        <button id="startButton" disabled>Loading...</button>
+    </div>
+    
+    <script>
+        // --- Core Setup ---
+        let renderer, scene, cameraLeft, cameraRight;
+        let video, videoTexture, mesh;
+
+        // --- GLSL Fragment Shader for Pincushion (Barrel) Distortion ---
+        const distortionFragmentShader = `
+            uniform sampler2D videoTexture;
+            varying vec2 vUv;
+            
+            // Adjust these coefficients (k1, k2) to change the distortion power.
+            const float k1 = 0.28; 
+            const float k2 = 0.35;
+
+            void main() {
+                // 1. Normalize UV coordinates from [0, 1] to [-1, 1]
+                vec2 uv = vUv * 2.0 - 1.0;
+                
+                // 2. Calculate the distance squared from the center (radius^2)
+                float r2 = uv.x * uv.x + uv.y * uv.y;
+                
+                // 3. Apply the radial distortion formula (Pincushion effect)
+                float distortion_factor = 1.0 + k1 * r2 + k2 * r2 * r2;
+                
+                // 4. Apply distortion to the normalized coordinates
+                vec2 distorted_uv = uv * distortion_factor;
+                
+                // 5. Convert back to texture coordinates [0, 1]
+                vec2 final_uv = distorted_uv * 0.5 + 0.5;
+
+                // 6. Check if the coordinate is outside the valid range (creates the vignette effect)
+                if (final_uv.x < 0.0 || final_uv.x > 1.0 || final_uv.y < 0.0 || final_uv.y > 1.0) {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); // Render black outside the distorted circle
+                } else {
+                    // 7. Sample the video texture at the new distorted coordinates
+                    gl_FragColor = texture2D(videoTexture, final_uv);
+                }
+            }
+        `;
+
+        // Function to load the video as a Blob, bypassing file:// CORS issues
+        async function loadVideoAsBlob() {
+            video = document.getElementById('video-source');
+            const startButton = document.getElementById('startButton');
+            const overlay = document.getElementById('overlay');
+            const videoPath = "hungry.mp4";
+
+            try {
+                // Fetch the video file (This fetch only works when served via HTTP)
+                const response = await fetch(videoPath);
+                if (!response.ok) {
+                    // If fetch fails, the error message is displayed in the overlay
+                    throw new Error(`HTTP Error Status: ${response.status}`);
+                }
+                
+                // Convert response to a Blob
+                const blob = await response.blob();
+                
+                // Create a temporary Blob URL and assign it to the video element's src
+                const blobUrl = URL.createObjectURL(blob);
+                video.src = blobUrl;
+                
+                // --- SUCCESS: Enable the start button and remove error messages ---
+                const errorDiv = overlay.querySelector('.error-message');
+                if (errorDiv) errorDiv.remove();
+                const instructionsDiv = overlay.querySelector('.instructions');
+                if (instructionsDiv) instructionsDiv.remove();
+                
+                startButton.textContent = "Tap to Start VR Video";
+                startButton.disabled = false;
+
+                // Set up the Three.js scene now that the video element has a source
+                init(); 
+
+            } catch (error) {
+                console.error("Critical Error: Video loading failed.", error);
+                
+                // If fetch fails (e.g., NetworkError on file://), keep instructions visible
+                startButton.textContent = "Cannot Start (Read Instructions)";
+                startButton.disabled = true;
+                
+                // The error message is already integrated into the initial HTML structure
+            }
+        }
+        
+        function init() {
+            const initialWidth = window.innerWidth;
+            const initialHeight = window.innerHeight;
+            
+            // 2. Create the renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(initialWidth, initialHeight);
+            renderer.autoClear = false; 
+            document.body.appendChild(renderer.domElement);
+            
+            // 3. Create the scene
+            scene = new THREE.Scene();
+            
+            // 4. Create the cameras
+            const aspect = initialWidth / initialHeight;
+            const orthoSize = 1; 
+            
+            cameraLeft = new THREE.OrthographicCamera(-aspect * orthoSize, aspect * orthoSize, orthoSize, -orthoSize, 0.1, 100);
+            cameraRight = new THREE.OrthographicCamera(-aspect * orthoSize, aspect * orthoSize, orthoSize, -orthoSize, 0.1, 100);
+            
+            cameraLeft.position.z = 1;
+            cameraRight.position.z = 1;
+
+            // 5. Create the video texture
+            videoTexture = new THREE.VideoTexture(video);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+            videoTexture.format = THREE.RGBFormat;
+            
+            // 6. Create Material with Distortion Shader
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    videoTexture: { value: videoTexture }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: distortionFragmentShader
+            });
+
+            // 7. Create Geometry (a plane to apply the video texture to)
+            const geometry = new THREE.PlaneGeometry(2 * aspect * orthoSize, 2 * orthoSize);
+            
+            // 8. Create the Mesh and add to scene
+            mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Start the animate loop
+            animate();
+        }
+
+        function onWindowResize() {
+            const newWidth = window.innerWidth;
+            const newHeight = window.innerHeight;
+            renderer.setSize(newWidth, newHeight);
+            
+            const aspect = newWidth / newHeight;
+            const orthoSize = 1;
+
+            // Update Orthographic Cameras 
+            cameraLeft.left = -aspect * orthoSize;
+            cameraLeft.right = aspect * orthoSize;
+            cameraLeft.top = orthoSize;
+            cameraLeft.bottom = -orthoSize;
+            cameraLeft.updateProjectionMatrix();
+
+            cameraRight.left = -aspect * orthoSize;
+            cameraRight.right = aspect * orthoSize;
+            cameraRight.top = orthoSize;
+            cameraRight.bottom = -orthoSize;
+            cameraRight.updateProjectionMatrix();
+
+            // Replace Mesh to match the new aspect ratio
+            scene.remove(mesh);
+            mesh.geometry.dispose(); 
+            
+            const geometry = new THREE.PlaneGeometry(2 * aspect * orthoSize, 2 * orthoSize);
+            mesh = new THREE.Mesh(geometry, mesh.material); 
+            scene.add(mesh);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const currentWidth = window.innerWidth;
+            const currentHeight = window.innerHeight;
+            
+            if (video && video.readyState >= video.HAVE_CURRENT_DATA) {
+                videoTexture.needsUpdate = true;
+            }
+            
+            renderer.clear();
+
+            // --- Render Left Eye (Left Half of Canvas) ---
+            renderer.setViewport(0, 0, currentWidth / 2, currentHeight);
+            renderer.setScissor(0, 0, currentWidth / 2, currentHeight);
+            renderer.setScissorTest(true);
+            renderer.render(scene, cameraLeft);
+
+            // --- Render Right Eye (Right Half of Canvas) ---
+            renderer.setViewport(currentWidth / 2, 0, currentWidth / 2, currentHeight);
+            renderer.setScissor(currentWidth / 2, 0, currentWidth / 2, currentHeight);
+            renderer.setScissorTest(true);
+            renderer.render(scene, cameraRight);
+        }
+
+        // --- Interaction Handler for Autoplay Policy ---
+        document.getElementById('startButton').addEventListener('click', function() {
+            // 1. Start the video playback after user interaction
+            video.play().catch(e => console.error("Video playback failed after click:", e));
+            
+            // 2. Hide the overlay
+            document.getElementById('overlay').style.display = 'none';
+        });
+
+        // Initialize video loading on page load
+        window.onload = loadVideoAsBlob;
+
+    </script>
+</body>
+</html>

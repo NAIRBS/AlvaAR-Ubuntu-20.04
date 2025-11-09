@@ -255,13 +255,16 @@ export class VideoPlayerSystem {
   // Place video at world point under crosshair
   placeVideo(currentPose, videoURL) {
     const { position, direction } = this.getCameraTransform(currentPose);
-    const videoDistance = this.ui ? this.ui.getVideoDistance() : 0.0;
+    // Default 0.5m ahead, slider adds to that (so 0 on slider = 0.5m, slider adds more)
+    const baseDistance = 0.5;
+    const sliderDistance = this.ui ? this.ui.getVideoDistance() : 0.0;
+    const videoDistance = baseDistance + sliderDistance;
     this.videoPosition = this.raycastToWorld(position, direction, 10.0, videoDistance);
     this.videoURL = videoURL;
     
     console.log('Camera position:', position);
     console.log('Camera direction:', direction);
-    console.log('Video distance forward from raycast:', videoDistance);
+    console.log('Video distance forward from raycast:', videoDistance, '(base 0.5m + slider', sliderDistance, 'm)');
     console.log('Video placed at:', this.videoPosition);
     console.log('Video URL:', videoURL);
     
@@ -279,7 +282,10 @@ export class VideoPlayerSystem {
     if (!this.videoPosition || !currentPose) return;
     
     const { position, direction } = this.getCameraTransform(currentPose);
-    const videoDistance = this.ui ? this.ui.getVideoDistance() : 0.0;
+    // Default 0.5m ahead, slider adds to that (so 0 on slider = 0.5m, slider adds more)
+    const baseDistance = 0.5;
+    const sliderDistance = this.ui ? this.ui.getVideoDistance() : 0.0;
+    const videoDistance = baseDistance + sliderDistance;
     const newPosition = this.raycastToWorld(position, direction, 10.0, videoDistance);
     
     this.videoPosition.copy(newPosition);

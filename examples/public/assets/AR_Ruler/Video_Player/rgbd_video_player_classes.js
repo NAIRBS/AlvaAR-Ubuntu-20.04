@@ -624,6 +624,7 @@ export class VideoPlayerUI {
   }
 
   getVideoDistance() {
+    // Returns slider value only (base 0.5m is added in placeVideo/updateVideoPosition)
     if (this.videoDistanceSlider) {
       return parseFloat(this.videoDistanceSlider.value);
     }
