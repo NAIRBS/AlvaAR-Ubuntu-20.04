@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,shrink-to-fit=no" name="viewport"/>
+  <meta content="IE=edge" http-equiv="X-UA-Compatible"/>
+  <title>RGBD Video AR Ruler Mobile - Distance Measurement with Distortion</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="stylesheet" href="./assets/AR_Ruler/rgbd_ar_ruler_styles.css">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background-color: #000;
+      height: auto;
+      min-height: 100vh;
+      width: 100%;
+    }
+    canvas {
+      display: block;
+    }
+    #main-container {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+    }
+    #container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh; /* Will be overridden by JavaScript to use window.innerHeight */
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1;
+      pointer-events: none;
+    }
+    #container > * {
+      pointer-events: auto;
+    }
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 25%; /* Center of left eye viewport (left half is 0-50%, center is at 25%) */
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    #crosshair::before,
+    #crosshair::after {
+      content: '';
+      position: absolute;
+      background: #ffffff;
+      box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+    }
+    #crosshair::before {
+      width: 2px;
+      height: 20px;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+    }
+    #crosshair::after {
+      width: 20px;
+      height: 2px;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    #left-frame-click-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 50%; /* Left half of container (left eye viewport) */
+      height: 100%;
+      z-index: 1001; /* Above crosshair but below other UI elements */
+      cursor: pointer;
+      background: transparent;
+    }
+    /* Panels container - side by side below the fixed container */
+    #panels-container {
+      display: flex !important; /* Always visible by default, override any CSS */
+      flex-direction: row;
+      justify-content: center;
+      width: 100%;
+      gap: 10px;
+      margin-top: 0; /* Will be set by JavaScript to window.innerHeight */
+      position: relative;
+      z-index: 0; /* Below fixed container */
+      padding: 20px;
+      padding-bottom: 40px;
+      min-height: calc(100vh - 100vh); /* Will be adjusted by JS */
+      visibility: visible !important;
+      opacity: 1 !important;
+      background-color: transparent; /* Ensure it's not transparent */
+    }
+    /* Override default CSS display: none for panels when in panels-container */
+    #panels-container #measurement-panel {
+      display: flex !important;
+      visibility: visible !important;
+    }
+    #panels-container #visualizer-panel {
+      display: block !important;
+      visibility: visible !important;
+    }
+    /* Hide panels when class is applied */
+    #panels-container.panels-hidden {
+      display: none !important;
+    }
+    #measurement-panel, #visualizer-panel {
+      flex-shrink: 0;
+      position: relative;
+      z-index: 0;
+    }
+    @media screen and (max-width: 768px) {
+      #container {
+        height: 50vh;
+      }
+      #panels-container {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="main-container">
+    <div id="video-selection-top">
+      <button id="toggle-panels" title="Toggle Panels">👁️</button>
+      <label for="video-dropdown">Select Video:</label>
+      <select id="video-dropdown">
+        <!-- Options will be generated dynamically from VIDEO_CONFIG -->
+      </select>
+    </div>
+    <div id="container">
+      <div id="crosshair"></div>
+      <div id="left-frame-click-overlay"></div>
+    </div>
+  </div>
+  <!-- Panels outside main-container to be in document flow below fixed container -->
+  <div id="panels-container">
+    <div id="measurement-panel">
+      <div id="distance-display">0.000 meters</div>
+      <div id="nearest-distance-display">Nearest: 0.000 meters</div>
+      <div id="status-display">Place start marker</div>
+      
+      
+        <div id="marker-distance-control">
+          <label for="marker-distance-slider">Place Marker forward by:</label>
+          <input type="range" id="marker-distance-slider" min="0.0" max="0.5" step="0.05" value="0.0">
+          <div id="marker-distance-value">0.00 meters</div>
+        </div>
+      
+      <div id="control-buttons">
+        <div class="button-row">
+          <button id="place-marker">Mark Start Point</button>
+          <button id="end-measurement">Mark End Point</button>
+          <button id="reset-measurement">Reset</button>
+          <button id="draw-plane">Draw Plane</button>
+        </div>
+        <button id="toggle-right-camera">Show Right Camera</button>
+      </div>
+    </div>
+    <div id="visualizer-panel"></div>
+  </div>
+<div id="overlay">
+  <button id="start_button">Start</button>
+  <div id="splash"></div>
+</div>
+
+<script type="module">
+  import Module from './assets/alva_ar.js';
+  import { Stats } from './assets/stats.js';
+  import { ARSimpleView, ARSimpleMap } from './assets/view.js';
+  import { Video } from './assets/utils.js';
+  import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r132/build/three.module.js';
+  
+  // Import the main application and performance monitor
+  import { main } from './assets/AR_Ruler/rgbd_ar_ruler_mobile_main.js';
+  import { PerformanceMonitor } from './assets/AR_Ruler/performance_monitor.js';
+  
+  // Start the application with dependencies - false = video mode
+  window.addEventListener('load', () => main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, false, PerformanceMonitor));
+</script>
+</body>
+</html>
+
