@@ -2,11 +2,23 @@
 
 AlvaAR is a real-time visual SLAM algorithm running as WebAssembly, in the browser. It is a heavily modified version of the [OV²SLAM](https://github.com/ov2slam/ov2slam) and [ORB-SLAM2](https://github.com/raulmur/ORB_SLAM2) projects. 
 
-SLAM is the core building block of Augmented Reality applications, focusing on world tracking.
+SLAM is the core building block of Augmented Reality applications, focusing on world tracking. 
+
+## This fork adds two additional AR features besides the original repository's simple cube spawning. 
+
+## These two features are accurate AR Ruler measurement with stereo input and a stereoscopic AR Video player.
+
+## Stereo input is configured to come from D435i or D435 RGBD Cameras for the best possible performance, config files can be added to accommodate other stereo cameras. ESP32 CAMs acting as a stereo pair's configuration files have also been added.
+
+## Input can be either through localhost port for the D435 RGBD Cameras or through the internet, enabling wireless AR experiences, provided sufficient power delivery for the frame publishing processing node (i.e Laptop or Jetson Xavier NX).
+
+## **AlvaAR also supports Mobile VR experiences. Scroll all the way down on the page to properly enable sizing for Mobile AR.**
 
 ![AR Ruler](https://github.com/user-attachments/assets/fa7505c0-54e9-4764-b0fb-5f062d9b4910)
 
 ![chrome_rXAHypeoSY](https://github.com/user-attachments/assets/da3eefbf-2a30-411a-ba67-e10a1ac34f76)
+
+<img width="2393" height="1114" alt="image" src="https://github.com/user-attachments/assets/f6a7468a-a54b-4f10-8631-e932797a64cd" />
 
 ## Examples
 The examples use [ThreeJS](https://threejs.org/) to apply and render the estimated camera pose to a 3d environment.  
@@ -21,16 +33,13 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
 
 ## [Video Demo](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/video.html): A desktop browser version using a video file as input.  
 
-## [Camera Demo](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/camera.html): The mobile version will access the device camera as input.
+## [Camera Demo](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/camera.html): The mobile version will access the device camera as input. (Links to Original Repo's website)
 
 <img width="75" src="examples/public/assets/qr.png">
 
-# This repository is under ongoing development. Planned enhancements are:
-1. Monocular Camera to Stereo Camera use
-2. Add multithreading support to dependencies and Wasm Modules
-3. Add more interfacing (button to activate functions)
+# This repository is considered functionally complete. No updates are planned as this is a proof of concept.
 
-## File Change Notes
+## File Change Notes (compared to original AlvaAR repository)
 - The `build.sh` script in `/src/libs` has been adapted for Linux compatibility; the original codebase was developed for macOS.
 
 - The file [`buildtests.in`](https://github.com/PX4/eigen/blob/master/scripts/buildtests.in) from the Eigen libs dependency folder was missing is now added to this folder [`/src/libs/eigen/scripts`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/tree/main/src/libs/eigen/scripts).
@@ -41,6 +50,8 @@ The examples use [ThreeJS](https://threejs.org/) to apply and render the estimat
   - [`src/libs/opengv/CMakeLists.txt`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/src/libs/opengv/CMakeLists.txt)
 
 - Updated port used in HTTPS to 8080, not 443 since it's private, in [`/examples/server.js`](https://github.com/NAIRBS/AlvaAR-Ubuntu-20.04/blob/main/examples/server.js)
+
+## - _**Several hundred more files for new AR/Web functionalities, test logs, video files, etc.**_
 
 ## Ubuntu Specific Setup
 ```
