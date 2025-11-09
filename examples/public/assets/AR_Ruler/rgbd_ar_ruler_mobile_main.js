@@ -355,43 +355,19 @@ async function main(Module, Stats, ARSimpleView, ARSimpleMap, Video, THREE, isLi
   // Enforce horizontal view for mobile devices
   enforceHorizontalView();
   
-  // Mobile scaling - calculate scale to make video half the display
+  // Mobile scaling - DISABLED to match reference file behavior
+  // The reference file (rgbd_AR_video_player_main.js) does NOT apply any transform
+  // It relies solely on CSS flexbox centering (display: flex; justify-content: center; align-items: center;)
+  // This ensures the distortion view is properly centered without any JavaScript transforms
   function calculateMobileScale() {
+    // Do nothing - match reference file which doesn't apply any mobile scaling transform
+    // The CSS handles centering via flexbox
     const container = document.getElementById('container');
-    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (container && isMobile) {
-      // Get the original video dimensions (640x480)
-      const originalWidth = 640;
-      const originalHeight = 480;
-      
-      // Calculate half the display height (shorter dimension in landscape)
-      const halfDisplayWidth = window.innerWidth * 0.5;
-      
-      // Calculate scale needed to make video width = half display height
-      const scale = halfDisplayWidth / originalWidth;
-      
-      // Apply the calculated scale
-      container.style.transform = `scale(${scale})`;
-      container.style.transformOrigin = 'top left';
-      
-      // Show right frame on mobile by setting showRightCamera to true
-      if (typeof showRightCamera !== 'undefined') {
-        showRightCamera = true;
-        console.log('Mobile: Enabled right camera display');
-      }
-      
-      console.log('Mobile scale applied:', {
-        displayHeight: window.innerHeight,
-        halfDisplayWeight: halfDisplayWidth,
-        originalWidth: originalWidth,
-        calculatedScale: scale,
-        appliedTransform: container.style.transform
-      });
-    } else if (container && !isMobile) {
-      // Reset transform for desktop
+    if (container) {
+      // Ensure no transform is applied (match reference behavior)
       container.style.transform = '';
-      console.log('Desktop detected - removed mobile scaling');
+      container.style.transformOrigin = '';
+      container.style.left = '0';
     }
   }
   
