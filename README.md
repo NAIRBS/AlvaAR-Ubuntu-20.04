@@ -4,15 +4,27 @@ AlvaAR is a real-time visual SLAM algorithm running as WebAssembly, in the brows
 
 SLAM is the core building block of Augmented Reality applications, focusing on world tracking. 
 
-## This fork adds two additional AR features besides the original repository's simple cube spawning. 
+## Enhanced Features
+In addition to the core cube-spawning functionality of the original repository, this fork introduces two advanced Augmented Reality (AR) features:
+* **Precision AR Ruler:** Delivers highly accurate spatial measurements utilizing stereoscopic input.
+* **Stereoscopic AR Video Player:** Enables immersive, three-dimensional video playback within the AR environment.
 
-## These two features are accurate AR Ruler measurement with stereo input and a stereoscopic AR Video player.
+## Camera Configuration & Hardware Support
+The system is optimized for **Intel® RealSense™ D435 and D435i RGB-D cameras** to ensure maximum tracking accuracy and performance. 
+* **Custom Profiles:** Users can integrate alternative stereo camera hardware by adding corresponding configuration files. 
+* **IoT Integration:** Pre-configured setup files are included for **ESP32-CAM** modules operating as a stereoscopic pair.
 
-## Stereo input is configured to come from D435i or D435 RGBD Cameras for the best possible performance, config files can be added to accommodate other stereo cameras. ESP32 CAMs acting as a stereo pair's configuration files have also been added.
+## Data Ingestion & Connectivity
+To facilitate flexible deployment environments, the processing node supports dual input methods:
+* **Localhost:** High-speed, wired data transfer directly from the connected D435/D435i cameras.
+* **Network-Based (IP):** Enables untethered, wireless AR experiences by streaming data over the internet or a local network. 
 
-## Input can be either through localhost port for the D435 RGBD Cameras or through the internet, enabling wireless AR experiences, provided sufficient power delivery for the frame publishing processing node (i.e Laptop or Jetson Xavier NX).
+> ⚠️ **Hardware Note:** Wireless streaming requires adequate power delivery and computing overhead on the frame-publishing node (e.g., a dedicated laptop or an NVIDIA® Jetson Xavier™ NX).
 
-## **AlvaAR also supports Mobile VR experiences. Scroll all the way down on the page to properly enable sizing for Mobile AR.**
+---
+
+## Mobile VR & AR Support
+AlvaAR fully supports mobile-based virtual reality experiences. To ensure proper viewport scaling and display calibration for mobile AR devices, scroll all the way down the page.
 
 ![AR Ruler](https://github.com/user-attachments/assets/fa7505c0-54e9-4764-b0fb-5f062d9b4910)
 
