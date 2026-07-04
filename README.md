@@ -26,10 +26,18 @@ To facilitate flexible deployment environments, the processing node supports dua
 ## Mobile VR & AR Support
 AlvaAR fully supports mobile-based virtual reality experiences. To ensure proper viewport scaling and display calibration for mobile AR devices, scroll all the way down the page.
 
+Try the below demo here: [Video Stream AR Ruler Visualizer](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/rgbd_video_AR_Ruler_visualizer.html)
 ![AR Ruler](https://github.com/user-attachments/assets/fa7505c0-54e9-4764-b0fb-5f062d9b4910)
+
+Try the below demo here (Below was recorded live so that are some differences), it may take 10+ Seconds to load the video initially after clicking: 
+
+[Video Stream Video Player](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/rgbd_video_player.html)
+
+[Wearable Mobile AR Barrel Distorted Video Player, click anywhere after start](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/video_rgbd_video_player.html)
 
 ![chrome_rXAHypeoSY](https://github.com/user-attachments/assets/da3eefbf-2a30-411a-ba67-e10a1ac34f76)
 
+[Wearable Mobile AR Barrel Distorted AR Ruler](https://nairbs.github.io/AlvaAR-Ubuntu-20.04/examples/public/rgbd_video_AR_Ruler_Mobile_visualizer.html)
 <img width="2393" height="1114" alt="image" src="https://github.com/user-attachments/assets/f6a7468a-a54b-4f10-8631-e932797a64cd" />
 
 ## Examples
